@@ -6,7 +6,7 @@
         <div class="flex min-h-screen flex-col justify-between bg-navy px-[60px] py-14">
             <button type="button" @click="$emit('voltar')"
                 class="inline-flex items-center gap-2.5 text-sm font-semibold text-white/70 hover:text-white">
-                <a href="" class="text-sm font-semibold text-ocean hover:text-sky">←</a>
+                <router-link to="/" class="text-sm font-semibold text-ocean hover:text-sky">←</router-link>
             </button>
 
             <div class="max-w-[440px]">

@@ -46,10 +46,10 @@ const cards = [
                     automaticamente e gera dashboards e gráficos interativos em segundos.
                 </p>
                 <div class="mt-[38px] flex flex-wrap items-center gap-[18px]">
-                    <button type="button" @click="$emit('login')"
+                    <router-link to="/login" type="button" @click="$emit('login')"
                         class="inline-flex items-center gap-2.5 rounded-full bg-ocean px-[34px] py-[17px] text-base font-bold tracking-tight text-white shadow-[0_12px_28px_-12px_rgba(0,75,133,0.75)] transition hover:-translate-y-0.5 hover:bg-sky">
-                        Acessar o Sistema <span class="text-lg leading-none">→</span>
-                    </button>
+                        Acessar o Sistema
+                    </router-link>
                     <a href="#sobre"
                         class="border-b border-navy/25 pb-0.5 text-base font-semibold text-navy hover:border-sky hover:text-sky">Como
                         funciona</a>
@@ -102,7 +102,7 @@ const cards = [
                 <div class="max-w-[620px]">
                     <h2
                         class="text-[clamp(32px,3.6vw,44px)] font-extrabold leading-[1.08] tracking-[-0.03em] text-navy text-balance">
-                        Por que usar o DatInsights?
+                        Por que usar o DataInsights?
                     </h2>
                     <p class="mt-5 text-lg leading-relaxed text-navy/65">
                         Do arquivo bruto ao painel pronto para apresentar, sem planilhas intermediárias e sem trabalho
@@ -130,10 +130,10 @@ const cards = [
                     <p class="mt-3.5 text-[17px] leading-relaxed text-white/70">Acesse com sua conta e envie o
                         primeiro arquivo.</p>
                 </div>
-                <button type="button" @click="$emit('login')"
-                    class="inline-flex items-center gap-2.5 rounded-full bg-sky px-[34px] py-[17px] text-base font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-navy">
-                    Acessar o Sistema <span class="text-lg leading-none">→</span>
-                </button>
+                <router-link to="/login" type="button" @click="$emit('login')"
+                    class="inline-flex items-center gap-2.5 rounded-full bg-sky px-[45px] py-[17px] text-base font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-navy">
+                    Acessar o Sistema
+                </router-link>
             </div>
         </section>
 
