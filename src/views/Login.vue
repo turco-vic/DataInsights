@@ -1,15 +1,35 @@
 <script setup>
+import { ref } from 'vue';
+
+import { useRouter } from 'vue-router';
+const router = useRouter();
+
+const email = ref('');
+const senha = ref('');
+const manterConectado = ref(false);
+const mostrarSenha = ref(false);
+
+function entrar() {
+    // TODO: chamar a API de autenticação
+    // TODO: autenticar de verdade
+    router.push('/app');
+}
 </script>
 
 <template>
     <div class="grid min-h-screen grid-cols-1 bg-mist font-sans text-navy lg:grid-cols-2">
+        <!-- painel institucional -->
         <div class="flex min-h-screen flex-col justify-between bg-navy px-[60px] py-14">
-            <button type="button" @click="$emit('voltar')"
+            <button type="button" @click="router.push('/')"
                 class="inline-flex items-center gap-2.5 text-sm font-semibold text-white/70 hover:text-white">
-                <router-link to="/" class="text-sm font-semibold text-ocean hover:text-sky">←</router-link>
+                <span class="text-base leading-none">←</span> Voltar ao site
             </button>
 
             <div class="max-w-[440px]">
+                <div class="mb-7 inline-flex items-center gap-2.5 rounded-full bg-sky/20 py-[7px] pl-[11px] pr-3.5">
+                    <span class="block h-[7px] w-[7px] rounded-full bg-sky"></span>
+                    <span class="text-[13px] font-bold text-[#9FD3F0]">Acesso restrito</span>
+                </div>
                 <h2
                     class="text-[clamp(32px,3.4vw,42px)] font-extrabold leading-tight tracking-[-0.03em] text-white text-balance">
                     Suas planilhas já viraram painéis.
@@ -32,16 +52,17 @@
             <div class="text-[13px] text-white/40">© 2026 DataInsights</div>
         </div>
 
+        <!-- formulário -->
         <div class="flex items-center justify-center px-10 py-14">
             <div class="w-full max-w-[420px]">
-                <span class="text-xl font-bold text-[#1A2A4F]">DataInsights</span>
+                <AppLogo size="text-[24px]" class="mb-[34px] block" />
                 <h1 class="text-[32px] font-extrabold tracking-[-0.03em] text-navy">Entrar na plataforma</h1>
-                <p class="mt-2.5 text-base leading-relaxed text-navy/60">Use seu e-mail.</p>
+                <p class="mt-2.5 text-base leading-relaxed text-navy/60">Use seu e-mail corporativo.</p>
 
                 <form class="mt-[34px] flex flex-col gap-5" @submit.prevent="entrar">
                     <label class="flex flex-col gap-2">
-                        <span class="text-[13px] font-bold text-navy">E-mail</span>
-                        <input v-model="email" type="email" placeholder="nome@email.com"
+                        <span class="text-[13px] font-bold text-navy">E-mail corporativo</span>
+                        <input v-model="email" type="email" placeholder="nome@empresa.com"
                             class="w-full rounded-xl border border-navy/15 bg-white px-4 py-[15px] text-base text-navy outline-none transition focus:border-sky focus:ring-4 focus:ring-sky/15" />
                     </label>
 
@@ -62,7 +83,7 @@
                             <input v-model="manterConectado" type="checkbox" class="h-4 w-4 accent-ocean" /> Manter
                             conectado
                         </label>
-                        <a href="#recuperar" class="text-sm font-semibold text-ocean hover:text-sky">Esqueci minha
+                        <a href="/recuperar-senha" class="text-sm font-semibold text-ocean hover:text-sky">Esqueci minha
                             senha</a>
                     </div>
 
@@ -73,9 +94,8 @@
                 </form>
 
                 <div class="mt-[26px] border-t border-navy/10 pt-[22px] text-sm leading-relaxed text-navy/60">
-                    Ainda não tem acesso?
-                    <a href="#contato" class="font-bold text-ocean hover:text-sky">Crie sua conta</a> ou
-                    <a href="#contato" class="font-bold text-ocean hover:text-sky">fale com o suporte</a>
+                    Ainda não tem acesso? Solicite ao coordenador da sua unidade ou
+                    <a href="/cadastro" class="font-bold text-ocean hover:text-sky">fale com o suporte</a>.
                 </div>
             </div>
         </div>
