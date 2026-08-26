@@ -1,51 +1,71 @@
 <script setup>
+import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import { arquivos } from '../../data/mock';
+import StatusBadge from '../../components/StatusBadge.vue';
+import { filesService } from '../../services/files';
 
-const filtros = ['Todos', 'Processados', 'Processando', 'Com erros'];
+const arquivos = ref([]);
+onMounted(async () => { arquivos.value = await filesService.listar(); });
+
+const filtros = [
+  { label: 'Todos', status: null },
+  { label: 'Processados', status: 'processado' },
+  { label: 'Processando', status: 'processando' },
+  { label: 'Com erros', status: 'erro' },
+];
+const filtro = ref(null);
+
+const lista = computed(() =>
+  filtro.value ? arquivos.value.filter((a) => a.status === filtro.value) : arquivos.value
+);
 </script>
 
 <template>
   <div>
     <div class="flex flex-wrap items-end justify-between gap-6">
       <div>
-        <h1 class="text-3xl font-extrabold tracking-[-0.03em] text-navy">Planilhas enviadas</h1>
-        <p class="mt-2 text-[15px] text-navy/60">37 arquivos processados nos últimos 12 meses</p>
+        <h1 class="text-2xl font-bold tracking-tight text-navy sm:text-3xl">Planilhas enviadas</h1>
+        <p class="mt-1.5 text-sm text-navy/60">{{ arquivos.length }} arquivos processados nos últimos 12 meses</p>
       </div>
-      <RouterLink to="/app/upload" class="rounded-full bg-ocean px-6 py-3 text-sm font-bold text-white hover:bg-sky">Enviar planilha</RouterLink>
+      <RouterLink to="/app/upload" class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy">Enviar planilha</RouterLink>
     </div>
 
-    <div class="my-[22px] flex flex-wrap items-center gap-2">
-      <span
-        v-for="(f, i) in filtros" :key="f"
-        class="rounded-full px-[15px] py-2 text-[12.5px]"
-        :class="i === 0 ? 'bg-navy font-bold text-white' : 'border border-navy/15 bg-white font-semibold text-navy/65'"
-      >{{ f }}</span>
+    <div class="my-5 flex flex-wrap items-center gap-2">
+      <button
+        v-for="f in filtros" :key="f.label" type="button" @click="filtro = f.status"
+        class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition"
+        :class="filtro === f.status ? 'bg-navy text-white' : 'border border-navy/15 bg-white text-navy/65 hover:text-navy'"
+      >{{ f.label }}</button>
     </div>
 
-    <div class="overflow-hidden rounded-2xl border border-navy/10 bg-white">
-      <div class="overflow-x-auto"><table class="w-full min-w-[720px] border-collapse">
-        <thead>
-          <tr class="border-b border-navy/10 text-[11.5px] font-bold tracking-[0.06em] text-navy/50">
-            <th class="px-6 py-3.5 text-left">ARQUIVO</th>
-            <th class="px-4 py-3.5 text-left">ENVIADO POR</th>
-            <th class="px-4 py-3.5 text-left">DATA</th>
-            <th class="px-4 py-3.5 text-right">LINHAS</th>
-            <th class="px-4 py-3.5 text-right">STATUS</th>
-            <th class="px-6 py-3.5"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="a in arquivos" :key="a.nome" class="border-b border-navy/5 hover:bg-mist">
-            <td class="px-6 py-[15px] text-sm font-bold text-navy">{{ a.nome }}</td>
-            <td class="px-4 py-[15px] text-sm text-navy/65">{{ a.autor }}</td>
-            <td class="px-4 py-[15px] text-[13.5px] text-navy/55">{{ a.data }}</td>
-            <td class="whitespace-nowrap px-4 py-[15px] text-right text-sm font-semibold text-navy">{{ a.linhas }}</td>
-            <td class="px-4 py-[15px] text-right"><span class="whitespace-nowrap rounded-full px-2.5 py-[5px] text-xs font-bold" :class="a.badge">{{ a.status }}</span></td>
-            <td class="px-6 py-[15px] text-right"><RouterLink to="/app/dataset" class="whitespace-nowrap text-[13.5px] font-bold text-ocean">Abrir</RouterLink></td>
-          </tr>
-        </tbody>
-      </table></div>
+    <div class="overflow-hidden rounded-xl border border-navy/10 bg-white">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[720px] border-collapse">
+          <thead>
+            <tr class="border-b border-navy/10 text-[11px] font-semibold uppercase tracking-wide text-navy/50">
+              <th class="px-6 py-3.5 text-left">Arquivo</th>
+              <th class="px-4 py-3.5 text-left">Enviado por</th>
+              <th class="px-4 py-3.5 text-left">Data</th>
+              <th class="px-4 py-3.5 text-right">Linhas</th>
+              <th class="px-4 py-3.5 text-right">Status</th>
+              <th class="px-6 py-3.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="a in lista" :key="a.nome" class="border-b border-navy/5 last:border-0 hover:bg-mist">
+              <td class="px-6 py-3.5 text-sm font-semibold text-navy">{{ a.nome }}</td>
+              <td class="px-4 py-3.5 text-sm text-navy/65">{{ a.autor }}</td>
+              <td class="px-4 py-3.5 text-[13px] text-navy/55">{{ a.data }}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-right text-sm font-semibold text-navy">{{ a.linhas }}</td>
+              <td class="px-4 py-3.5 text-right"><StatusBadge :status="a.status" /></td>
+              <td class="px-6 py-3.5 text-right"><RouterLink to="/app/dataset" class="whitespace-nowrap text-[13px] font-semibold text-ocean hover:text-navy">Abrir</RouterLink></td>
+            </tr>
+            <tr v-if="!lista.length">
+              <td colspan="6" class="px-6 py-10 text-center text-sm text-navy/50">Nenhuma planilha neste filtro.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>

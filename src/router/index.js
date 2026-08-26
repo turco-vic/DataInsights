@@ -11,27 +11,38 @@ import Files from '../views/app/Files.vue';
 import Dataset from '../views/app/Dataset.vue';
 import Users from '../views/app/Users.vue';
 import Settings from '../views/app/Settings.vue';
+import { auth } from '../stores/auth';
 
-export default createRouter({
-    history: createWebHistory(),
-    scrollBehavior: () => ({ top: 0 }),
-    routes: [
-        { path: '/', component: LandingPage },
-        { path: '/login', component: Login },
-        { path: '/cadastro', component: Signup },
-        { path: '/recuperar-senha', component: ForgotPassword },
-        {
-            path: '/app',
-            component: AppShell,
-            children: [
-                { path: '', component: Dashboard },
-                { path: 'upload', component: Upload },
-                { path: 'planilhas', component: Files },
-                { path: 'dataset', component: Dataset },
-                { path: 'usuarios', component: Users },
-                { path: 'configuracoes', component: Settings },
-            ],
-        },
-        { path: '/:pathMatch(.*)*', component: NotFound },
-    ],
+const router = createRouter({
+  history: createWebHistory(),
+  scrollBehavior: () => ({ top: 0 }),
+  routes: [
+    { path: '/', component: LandingPage },
+    { path: '/login', component: Login },
+    { path: '/cadastro', component: Signup },
+    { path: '/recuperar-senha', component: ForgotPassword },
+    {
+      path: '/app',
+      component: AppShell,
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', component: Dashboard },
+        { path: 'upload', component: Upload },
+        { path: 'planilhas', component: Files },
+        { path: 'dataset', component: Dataset },
+        { path: 'usuarios', component: Users },
+        { path: 'configuracoes', component: Settings },
+      ],
+    },
+    { path: '/:pathMatch(.*)*', component: NotFound },
+  ],
 });
+
+// Guarda: rotas do app exigem sessão. Sem token, volta ao login guardando o destino.
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !auth.isAuthenticated.value) {
+    return { path: '/login', query: { redirect: to.fullPath } };
+  }
+});
+
+export default router;

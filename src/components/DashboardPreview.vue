@@ -1,6 +1,6 @@
 <template>
     <div
-        class="overflow-hidden rounded-[20px] border border-navy/10 bg-white shadow-[0_40px_80px_-50px_rgba(0,16,68,0.55)]">
+        class="overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-[0_40px_80px_-50px_rgba(22,35,63,0.5)]">
         <div class="flex items-center justify-between border-b border-navy/10 px-[22px] py-4">
             <div class="flex items-center gap-2.5">
                 <span class="block h-2.5 w-2.5 rounded-full bg-navy"></span>
@@ -33,7 +33,7 @@
             <div>
                 <div class="mb-[18px] text-xs font-bold tracking-wide text-navy/55">SETORES</div>
                 <div class="mx-auto flex h-[118px] w-[118px] items-center justify-center rounded-full"
-                    style="background: conic-gradient(#001044 0 46%, #004B85 46% 76%, #2E91C9 76% 92%, rgba(0,16,68,0.12) 92% 100%)">
+                    style="background: conic-gradient(var(--color-navy) 0 46%, var(--color-ocean) 46% 76%, var(--color-sky) 76% 92%, color-mix(in srgb, var(--color-navy) 12%, transparent) 92% 100%)">
                     <div
                         class="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-white text-[15px] font-extrabold tracking-tight text-navy">
                         46%</div>
