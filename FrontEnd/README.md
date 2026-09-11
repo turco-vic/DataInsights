@@ -10,8 +10,9 @@ Projeto Integrador desenvolvido para a disciplina de Framework Front-End (SENAI)
 
 ## ✨ Funcionalidades
 
-- **Upload Simples** — envie planilhas `.xlsx` com apenas um clique
-- **Tratamento de Dados** — padronização e limpeza automática dos dados
+- **Upload Simples** — envie planilhas `.xlsx`, `.xls` ou `.csv` com apenas um clique
+- **Tratamento de Dados** — padronização e limpeza automática no próprio navegador
+- **Validação** — campos obrigatórios vazios, códigos duplicados e níveis inválidos são apontados linha a linha
 - **Gráficos Automáticos** — visualize os dados em tempo real
 - **Insights Estratégicos** — KPIs e relatórios detalhados para a empresa
 
@@ -27,8 +28,33 @@ Projeto Integrador desenvolvido para a disciplina de Framework Front-End (SENAI)
 - [Vue.js 3](https://vuejs.org/) — framework front-end
 - [Vite](https://vitejs.dev/) — build tool e servidor de desenvolvimento
 - [Vue Router](https://router.vuejs.org/) — navegação entre telas
+- [Pinia](https://pinia.vuejs.org/) — estado global do upload (arquivo, dados tratados e erros)
+- [SheetJS / xlsx](https://sheetjs.com/) — leitura de Excel e CSV no navegador
 - [Tailwind CSS](https://tailwindcss.com/) — estilização com classes utilitárias
 - HTML Semântico — foco em SEO e acessibilidade
+
+> **Nota sobre o `xlsx`:** instalado a partir do CDN oficial da SheetJS
+> (`https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz`) e não do npm. A versão
+> publicada no npm está parada na 0.18.5 e tem duas vulnerabilidades conhecidas
+> (prototype pollution e ReDoS) sem correção disponível por lá.
+
+## 📊 Tratamento dos Dados
+
+A padronização segue a aba `dicionario_dados` da planilha modelo e acontece em
+`src/stores/uploadStore.js`, na action `tratarLinha()`:
+
+| Campo | Tratamento |
+|-------|------------|
+| `codigo_cliente` | trim; validação de duplicidade |
+| `nome_cliente` | trim; capitalização |
+| `consultor` | trim; capitalização (`ANA SOUZA` → `Ana Souza`) |
+| `segmento` | unificação de variações (`IND.`, `Industria`, `INDUSTRIA` → `Indústria`) |
+| `nivel_cliente` | uppercase; somente A, B ou C |
+| `faturamento_anual` | conversão para número; validação de vazio e negativo |
+| `servicos_contratados` | separação por `;` com remoção de espaços |
+| `data_contratacao` | conversão para data válida |
+| `cidade` | trim; capitalização |
+| `uf` | uppercase; validação de 2 caracteres |
 
 ## 🎨 Identidade Visual
 
@@ -46,8 +72,8 @@ Paleta baseada na marca CTI, seguindo a regra 60-30-10:
 # Clonar o repositório
 git clone https://github.com/seu-usuario/DataInsights.git
 
-# Entrar na pasta
-cd datainsights
+# Entrar na pasta do front-end (o back-end Java fica em ../BackEnd)
+cd DataInsights/FrontEnd
 
 # Instalar as dependências
 npm install
@@ -57,6 +83,30 @@ npm run dev
 ```
 
 Acesse `http://localhost:5173` no navegador.
+
+> Todos os comandos `npm` deste projeto rodam dentro de `FrontEnd/`. Não existe
+> `package.json` na raiz do repositório.
+
+## 🧭 Etapa Atual e Próximos Passos
+
+**Nesta etapa (somente front-end):** a planilha é lida, tratada e validada
+inteiramente no navegador. O estado vive no Pinia, em memória — ao recarregar a
+página os dados são perdidos. As telas de Dashboard, Planilhas, Dataset e
+Usuários ainda consomem dados de exemplo de `src/services/mock.js`.
+
+**Próxima etapa — backend e nuvem:**
+
+| Camada | Tecnologia | Situação |
+|--------|------------|----------|
+| Front-end | Vue 3 + Pinia | ✅ nesta etapa |
+| HTTP | Axios / `fetch` | ⏳ próxima etapa |
+| API | Java Spring Boot | ⏳ próxima etapa (scaffold em `BackEnd/`) |
+| Persistência | PostgreSQL | ⏳ próxima etapa |
+| Nuvem | Azure Database for PostgreSQL | ⏳ próxima etapa |
+
+O front-end **não acessará o banco diretamente**: quem grava no PostgreSQL é o
+Spring Boot. A troca é isolada em `src/services/` — cada serviço hoje devolve
+mock e passará a chamar a API real sem alteração nas telas.
 
 ## 👤 Autor
 

@@ -10,7 +10,11 @@ export const filesService = {
     // return http.get('/planilhas');
   },
 
-  // Mock: processa um upload e devolve o resumo do tratamento.
+  // ATENÇÃO: não usado pela tela de upload. Desde que o uploadStore passou a ler
+  // e tratar a planilha no navegador, quem manda é src/stores/uploadStore.js.
+  // Esta função continua devolvendo mock — é apenas o ponto de entrada reservado
+  // para o Spring Boot. Ao ligar o backend, troque o corpo pelo POST real e
+  // chame-a de uma action enviarParaBackend() no store; não a use como está.
   async enviar(/* arquivo */) {
     return uploadResumo;
 
