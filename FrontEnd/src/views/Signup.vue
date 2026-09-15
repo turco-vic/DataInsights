@@ -3,10 +3,10 @@ import { ref, computed } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import AppLogo from '../components/AppLogo.vue';
 import Icon from '../components/Icon.vue';
-import { authService } from '../services/auth';
-import { auth } from '../stores/auth';
+import { useAuthStore } from '../stores/authStore';
 
 const router = useRouter();
+const auth = useAuthStore();
 const nome = ref('');
 const empresa = ref('');
 const email = ref('');
@@ -26,9 +26,7 @@ const forca = computed(() => {
 const forcaTom = ['bg-navy/15', 'bg-red-500', 'bg-amber-500', 'bg-emerald-600'];
 
 async function criarConta() {
-  const { token, user } = await authService.login(email.value);
-  auth.setSession(token, { ...user, nome: nome.value || user.nome });
-  router.push('/app');
+  if (await auth.login(email.value.trim(), senha.value, nome.value)) router.push('/app');
 }
 </script>
 

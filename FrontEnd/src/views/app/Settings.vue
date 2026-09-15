@@ -1,9 +1,9 @@
 <script setup>
 import { ref } from 'vue';
 import Icon from '../../components/Icon.vue';
-import { auth } from '../../stores/auth';
+import { useAuthStore } from '../../stores/authStore';
 
-const u = auth.user.value || {};
+const u = useAuthStore().usuario || {};
 const perfil = ref({
   nome: u.nome || '',
   email: u.email || '',

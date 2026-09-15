@@ -2,10 +2,11 @@
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppLogo from '../AppLogo.vue';
 import Icon from '../Icon.vue';
-import { auth } from '../../stores/auth';
+import { useAuthStore } from '../../stores/authStore';
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 
 const nav = [
   { to: '/app', label: 'Dashboard', icon: 'dashboard' },

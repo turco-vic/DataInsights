@@ -28,7 +28,7 @@ Projeto Integrador desenvolvido para a disciplina de Framework Front-End (SENAI)
 - [Vue.js 3](https://vuejs.org/) — framework front-end
 - [Vite](https://vitejs.dev/) — build tool e servidor de desenvolvimento
 - [Vue Router](https://router.vuejs.org/) — navegação entre telas
-- [Pinia](https://pinia.vuejs.org/) — estado global do upload (arquivo, dados tratados e erros)
+- [Pinia](https://pinia.vuejs.org/) — estado global: login (`authStore`), upload (`uploadStore`) e planilhas enviadas (`planilhasStore`)
 - [SheetJS / xlsx](https://sheetjs.com/) — leitura de Excel e CSV no navegador
 - [Tailwind CSS](https://tailwindcss.com/) — estilização com classes utilitárias
 - HTML Semântico — foco em SEO e acessibilidade
@@ -90,9 +90,10 @@ Acesse `http://localhost:5173` no navegador.
 ## 🧭 Etapa Atual e Próximos Passos
 
 **Nesta etapa (somente front-end):** a planilha é lida, tratada e validada
-inteiramente no navegador. O estado vive no Pinia, em memória — ao recarregar a
-página os dados são perdidos. As telas de Dashboard, Planilhas, Dataset e
-Usuários ainda consomem dados de exemplo de `src/services/mock.js`.
+inteiramente no navegador. Não há dados fictícios: Dashboard, Planilhas e Dataset
+são montados a partir das planilhas enviadas, que o Pinia guarda no `localStorage`
+(sobrevivem ao F5, mas ficam só neste navegador). O login também persiste no
+`localStorage`; qualquer e-mail e senha preenchidos são aceitos até o backend existir.
 
 **Próxima etapa — backend e nuvem:**
 
@@ -105,8 +106,8 @@ Usuários ainda consomem dados de exemplo de `src/services/mock.js`.
 | Nuvem | Azure Database for PostgreSQL | ⏳ próxima etapa |
 
 O front-end **não acessará o banco diretamente**: quem grava no PostgreSQL é o
-Spring Boot. A troca é isolada em `src/services/` — cada serviço hoje devolve
-mock e passará a chamar a API real sem alteração nas telas.
+Spring Boot. A troca fica nos stores: `authService.login` passa a chamar
+`POST /api/usuarios/login` e `planilhasStore.salvar` passa a enviar os dados para a API.
 
 ## 👤 Autor
 

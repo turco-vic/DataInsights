@@ -3,9 +3,16 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import Icon from '../../components/Icon.vue';
 import { useUploadStore } from '../../stores/uploadStore';
+import { usePlanilhasStore } from '../../stores/planilhasStore';
+import { useAuthStore } from '../../stores/authStore';
 
 const router = useRouter();
 const upload = useUploadStore();
+const planilhas = usePlanilhasStore();
+const auth = useAuthStore();
+
+// null = nada enviado ainda; true/false = conseguiu ou não guardar no navegador.
+const salvo = ref(null);
 const inputArquivo = ref(null);
 
 // A prévia mostra só as primeiras linhas: uma planilha de 15 mil registros
@@ -37,8 +44,19 @@ function abrirSeletor() {
 
 // A view só entrega o arquivo ao store: quem lê e trata os dados é o Pinia.
 async function processar(arquivo) {
+  salvo.value = null;
   upload.selecionarArquivo(arquivo);
   await upload.processarPlanilha();
+
+  // Planilha lida: fica guardada e passa a alimentar Dashboard, Planilhas e Dataset.
+  if (upload.temDados) {
+    salvo.value = planilhas.salvar({
+      nome: arquivo.name,
+      autor: auth.nomeExibicao,
+      dadosTratados: upload.dadosTratados,
+      erros: upload.erros,
+    });
+  }
 }
 
 function aoEscolher(evento) {
@@ -53,6 +71,7 @@ function aoSoltar(evento) {
 
 function reenviar() {
   upload.limpar();
+  salvo.value = null;
   if (inputArquivo.value) inputArquivo.value.value = '';
 }
 </script>
@@ -88,7 +107,11 @@ function reenviar() {
           </div>
           <div>
             <div class="text-[15px] font-semibold text-navy">{{ upload.arquivo?.name }}</div>
-            <div class="text-[13px] text-navy/55">{{ upload.totalClientes }} linhas lidas e padronizadas</div>
+            <div class="text-[13px] text-navy/55">
+              {{ upload.totalClientes }} linhas lidas e padronizadas
+              <span v-if="salvo" class="font-semibold text-emerald-700">· salva em Planilhas enviadas</span>
+              <span v-else-if="salvo === false" class="font-semibold text-amber-700">· grande demais para guardar; disponível até recarregar</span>
+            </div>
           </div>
         </div>
         <div class="flex gap-3">

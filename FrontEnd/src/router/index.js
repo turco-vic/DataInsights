@@ -11,7 +11,7 @@ import Files from '../views/app/Files.vue';
 import Dataset from '../views/app/Dataset.vue';
 import Users from '../views/app/Users.vue';
 import Settings from '../views/app/Settings.vue';
-import { auth } from '../stores/auth';
+import { useAuthStore } from '../stores/authStore';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -40,7 +40,8 @@ const router = createRouter({
 
 // Guarda: rotas do app exigem sessão. Sem token, volta ao login guardando o destino.
 router.beforeEach((to) => {
-  if (to.meta.requiresAuth && !auth.isAuthenticated.value) {
+  // useAuthStore() dentro do guard: no topo do arquivo o Pinia ainda não existe.
+  if (to.meta.requiresAuth && !useAuthStore().logado) {
     return { path: '/login', query: { redirect: to.fullPath } };
   }
 });

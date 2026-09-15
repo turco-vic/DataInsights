@@ -2,11 +2,12 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import Icon from '../Icon.vue';
-import { auth } from '../../stores/auth';
+import { useAuthStore } from '../../stores/authStore';
 
 const PAPEL = { admin: 'Administrador', analista: 'Analista', leitor: 'Leitor' };
 
-const user = computed(() => auth.user.value || {});
+const auth = useAuthStore();
+const user = computed(() => auth.usuario || {});
 const papelLabel = computed(() => PAPEL[user.value.papel] || 'Usuário');
 </script>
 

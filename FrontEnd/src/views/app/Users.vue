@@ -1,10 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed } from 'vue';
 import StatusBadge from '../../components/StatusBadge.vue';
-import { usersService } from '../../services/users';
+import { useAuthStore } from '../../stores/authStore';
 
-const usuarios = ref([]);
-onMounted(async () => { usuarios.value = await usersService.listar(); });
+// Sem backend não existe cadastro de usuários: a lista mostra quem está logado
+// neste navegador. Quando a API existir, vira GET /api/usuarios.
+const auth = useAuthStore();
+const usuarios = computed(() =>
+  auth.usuario ? [{ ...auth.usuario, acesso: 'Sessão atual' }] : [],
+);
 
 const papeis = [
   { t: 'Administrador', d: 'Gerencia usuários, integrações e todas as planilhas da empresa.', c: 'text-navy' },
@@ -27,7 +31,7 @@ function gerenciar(usuario) {
     <div class="flex flex-wrap items-end justify-between gap-6">
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-navy sm:text-3xl">Usuários</h1>
-        <p class="mt-1.5 text-sm text-navy/60">{{ usuarios.length }} pessoas com acesso · 1 administrador</p>
+        <p class="mt-1.5 text-sm text-navy/60">{{ usuarios.length }} pessoa(s) com acesso neste navegador</p>
       </div>
       <button type="button" @click="convidar" class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy">Convidar usuário</button>
     </div>

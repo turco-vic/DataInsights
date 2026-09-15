@@ -3,24 +3,27 @@ import { ref } from 'vue';
 import { RouterLink, useRouter, useRoute } from 'vue-router';
 import AppLogo from '../components/AppLogo.vue';
 import Icon from '../components/Icon.vue';
-import { authService } from '../services/auth';
-import { auth } from '../stores/auth';
+import { useAuthStore } from '../stores/authStore';
 
 const router = useRouter();
 const route = useRoute();
+const auth = useAuthStore();
 
 const email = ref('');
 const senha = ref('');
 const manterConectado = ref(true);
 const mostrarSenha = ref(false);
 const entrando = ref(false);
+const mensagem = ref('');
 
 async function entrar() {
+  mensagem.value = '';
   entrando.value = true;
-  const { token, user } = await authService.login(email.value, senha.value);
-  auth.setSession(token, user);
+  const ok = await auth.login(email.value.trim(), senha.value);
   entrando.value = false;
-  router.push(route.query.redirect || '/app');
+
+  if (ok) router.push(route.query.redirect || '/app');
+  else mensagem.value = 'Preencha e-mail e senha.';
 }
 </script>
 
@@ -98,6 +101,8 @@ async function entrar() {
             class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy disabled:opacity-60">
             {{ entrando ? 'Entrando…' : 'Entrar' }}
           </button>
+
+          <p v-if="mensagem" class="text-sm font-medium text-red-700">{{ mensagem }}</p>
         </form>
 
         <div class="mt-6 border-t border-navy/10 pt-5 text-sm leading-relaxed text-navy/60">
