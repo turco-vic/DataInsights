@@ -8,10 +8,10 @@
 		<version>4.1.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
+	<groupId>com.cti</groupId>
+	<artifactId>cti-provedor</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
+	<name>cti-provedor</name>
 	<description/>
 	<url/>
 	<licenses>

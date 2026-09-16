@@ -22,7 +22,12 @@ public class UsuarioService {
 
     public Usuario criar(UsuarioDTO dto) {
         String senhaHash = encoder.encode(dto.getSenha());
-        Usuario usuario = new Usuario(null, dto.getNome(), dto.getEmail(), senhaHash);
+
+        Usuario usuario = new Usuario();
+        usuario.setNome(dto.getNome());
+        usuario.setEmail(dto.getEmail());
+        usuario.setSenhaHash(senhaHash);
+
         return repository.save(usuario);
     }
 
@@ -36,9 +41,7 @@ public class UsuarioService {
 
         usuario.setNome(dto.getNome());
         usuario.setEmail(dto.getEmail());
-        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
-            usuario.setSenhaHash(encoder.encode(dto.getSenha()));
-        }
+        usuario.setSenhaHash(encoder.encode(dto.getSenha()));
 
         return repository.save(usuario);
     }
