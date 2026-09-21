@@ -17,6 +17,10 @@ public class Telemetria {
     private LocalDateTime dataHora;
     private String mensagem;
 
+    @ManyToOne
+    @JoinColumn(name = "cliente_id")
+    private Cliente cliente;
+
     public Telemetria() {
     }
 
@@ -50,5 +54,13 @@ public class Telemetria {
 
     public void setMensagem(String mensagem) {
         this.mensagem = mensagem;
+    }
+
+    public Cliente getCliente() {
+        return cliente;
+    }
+
+    public void setCliente(Cliente cliente) {
+        this.cliente = cliente;
     }
 }

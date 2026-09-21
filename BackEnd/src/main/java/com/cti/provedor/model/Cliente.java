@@ -1,6 +1,7 @@
 package com.cti.provedor.model;
 
 import jakarta.persistence.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -26,6 +27,9 @@ public class Cliente {
 
     @OneToMany(mappedBy = "cliente")
     private List<Insight> insights;
+
+    @OneToMany(mappedBy = "cliente")
+    private List<Telemetria> telemetrias = new ArrayList<>();
 
     public Cliente() {
     }
@@ -84,5 +88,13 @@ public class Cliente {
 
     public void setInsights(List<Insight> insights) {
         this.insights = insights;
+    }
+
+    public List<Telemetria> getTelemetrias() {
+        return telemetrias;
+    }
+
+    public void setTelemetrias(List<Telemetria> telemetrias) {
+        this.telemetrias = telemetrias;
     }
 }
