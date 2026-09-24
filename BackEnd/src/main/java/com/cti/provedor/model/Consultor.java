@@ -1,5 +1,7 @@
 package com.cti.provedor.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.util.List;
 
@@ -16,6 +18,15 @@ public class Consultor {
 
     private String matricula;
 
+    // nullable no banco para nao quebrar linhas antigas; a obrigatoriedade fica no Service
+    @Column(unique = true)
+    private String email;
+
+    // guarda o hash BCrypt; entra no JSON como "senha" e nunca e devolvida
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String senha;
+
+    @JsonIgnore
     @OneToMany(mappedBy = "consultor")
     private List<Cliente> clientes;
 
@@ -44,6 +55,22 @@ public class Consultor {
 
     public void setMatricula(String matricula) {
         this.matricula = matricula;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getSenha() {
+        return senha;
+    }
+
+    public void setSenha(String senha) {
+        this.senha = senha;
     }
 
     public List<Cliente> getClientes() {
