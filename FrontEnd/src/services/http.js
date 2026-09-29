@@ -1,11 +1,9 @@
 import { useAuthStore } from '../stores/authStore';
 
-// Wrapper fino sobre fetch. Ainda não é usado (não há backend), mas está pronto:
-// quando o backend Java entrar, cada serviço passa a chamar http.get/post/... daqui.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 async function request(caminho, { method = 'GET', body, headers } = {}) {
-  const { token } = useAuthStore(); // dentro da função, depois do app.use(pinia)
+  const { token } = useAuthStore();
   const opcoes = {
     method,
     headers: {

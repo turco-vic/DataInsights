@@ -1,6 +1,4 @@
 <script setup>
-// Set de ícones SVG inline (traço, herda currentColor). Sem dependências externas.
-// Uso: <Icon name="upload" class="h-5 w-5" />
 defineProps({ name: { type: String, required: true } });
 
 const paths = {

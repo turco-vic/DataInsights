@@ -6,7 +6,7 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>4.1.1</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
 	<groupId>com.cti</groupId>
 	<artifactId>cti-provedor</artifactId>
@@ -64,7 +64,6 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Geração/validação do token JWT (Passo 5) -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>

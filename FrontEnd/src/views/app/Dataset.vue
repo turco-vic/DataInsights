@@ -16,7 +16,6 @@ const tabs = [
   { id: 'graficos', label: 'Gráficos' },
 ];
 
-// Vue não expõe window no template; a impressão do navegador também salva em PDF.
 const imprimir = () => window.print();
 
 const acento = ['bg-navy', 'bg-ocean', 'bg-sky'];
@@ -81,9 +80,12 @@ const niveis = computed(() => {
           </div>
         </div>
         <div v-if="p.erros.length" class="rounded-xl border border-amber-500/30 bg-amber-50 px-6 py-5 lg:col-span-2">
-          <h2 class="text-sm font-bold text-amber-800">{{ p.erros.length }} inconsistência(s) encontrada(s) no upload</h2>
+          <h2 class="text-sm font-bold text-amber-800">{{ p.erros.length }} inconsistência(s) encontrada(s) no upload · {{ p.linhasComErro }} linha(s) descartada(s)</h2>
           <ul class="mt-2 space-y-1 text-[13px] leading-relaxed text-amber-900/80">
-            <li v-for="(erro, i) in p.erros" :key="i">· {{ erro }}</li>
+            <li v-for="(erro, i) in p.erros" :key="i">
+              · <span v-if="erro.linha" class="font-semibold">Linha {{ erro.linha }}</span>
+              <span v-if="erro.campo !== '—'"> ({{ erro.campo }})</span>: {{ erro.descricao }}
+            </li>
           </ul>
         </div>
       </div>

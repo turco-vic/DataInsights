@@ -11,6 +11,7 @@ const auth = useAuthStore();
 const nav = [
   { to: '/app', label: 'Dashboard', icon: 'dashboard' },
   { to: '/app/upload', label: 'Upload de planilha', icon: 'upload' },
+  { to: '/app/relatorio', label: 'Relatório de validação', icon: 'check' },
   { to: '/app/planilhas', label: 'Planilhas enviadas', icon: 'files' },
   { to: '/app/dataset', label: 'Relatório do dataset', icon: 'dataset' },
   { to: '/app/usuarios', label: 'Usuários', icon: 'users' },

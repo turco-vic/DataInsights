@@ -7,7 +7,6 @@ const email = ref('');
 const enviado = ref(false);
 
 function enviar() {
-  // TODO: backend dispara o e-mail de recuperação.
   enviado.value = true;
 }
 </script>

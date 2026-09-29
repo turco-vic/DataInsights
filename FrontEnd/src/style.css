@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-    /* Identidade DataInsights — uma paleta única, usada em toda a UI e nos gráficos. */
     --color-navy: #16233f;
     --color-ocean: #2563a8;
     --color-sky: #4a9fe0;

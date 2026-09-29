@@ -3,8 +3,6 @@ import { computed } from 'vue';
 import StatusBadge from '../../components/StatusBadge.vue';
 import { useAuthStore } from '../../stores/authStore';
 
-// Sem backend não existe cadastro de usuários: a lista mostra quem está logado
-// neste navegador. Quando a API existir, vira GET /api/usuarios.
 const auth = useAuthStore();
 const usuarios = computed(() =>
   auth.usuario ? [{ ...auth.usuario, acesso: 'Sessão atual' }] : [],
@@ -17,11 +15,9 @@ const papeis = [
 ];
 
 function convidar() {
-  // TODO: abrir formulário de convite (backend envia o e-mail).
   alert('O convite de usuários ficará disponível quando o backend estiver conectado.');
 }
 function gerenciar(usuario) {
-  // TODO: abrir gestão de permissões do usuário.
   alert(`Gestão de ${usuario.nome} ficará disponível quando o backend estiver conectado.`);
 }
 </script>

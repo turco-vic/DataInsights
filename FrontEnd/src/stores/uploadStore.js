@@ -1,14 +1,20 @@
 import { defineStore } from 'pinia';
 import * as XLSX from 'xlsx';
+import api from '../services/api';
 
-// Store da tela de upload: guarda o arquivo escolhido, lê a planilha no próprio
-// navegador (sem backend), padroniza cada linha e acumula os erros encontrados.
-// O tratamento segue a aba "dicionario_dados" da planilha modelo da aula.
-// Quando o backend Java existir, uma action enviarParaBackend() manda
-// dadosTratados para o Spring Boot — a leitura e o tratamento continuam aqui.
+export const TIPOS_ERRO = {
+  COLUNA: 'Coluna ausente',
+  VAZIO: 'Campo vazio',
+  EMAIL: 'E-mail inválido',
+  DUPLICADO: 'Registro duplicado',
+  FORA_PADRAO: 'Dado fora do padrão',
+};
 
-// Fora do store: constantes não precisam ser recriadas a cada linha.
-// As chaves são o valor da planilha já com trim() e toUpperCase() aplicados.
+export const TIPOS_AVISO = {
+  ESPACO: 'Espaço em branco',
+  PADRONIZADO: 'Texto padronizado',
+};
+
 const MAPA_SEGMENTOS = {
   'IND.': 'Indústria',
   INDUSTRIA: 'Indústria',
@@ -16,6 +22,8 @@ const MAPA_SEGMENTOS = {
   'COM.': 'Comércio',
   COMERCIO: 'Comércio',
   'COMÉRCIO': 'Comércio',
+  SERVICO: 'Serviços',
+  'SERVIÇO': 'Serviços',
   SERVICOS: 'Serviços',
   'SERVIÇOS': 'Serviços',
   SAUDE: 'Saúde',
@@ -24,22 +32,37 @@ const MAPA_SEGMENTOS = {
   'EDUCAÇÃO': 'Educação',
   TECNOLOGIA: 'Tecnologia',
 };
+const SEGMENTOS_VALIDOS = [...new Set(Object.values(MAPA_SEGMENTOS))];
 
 const NIVEIS_VALIDOS = ['A', 'B', 'C'];
 const EXTENSOES_ACEITAS = ['.xlsx', '.xls', '.csv'];
-
-// Campos de texto que o dicionário de dados marca como obrigatórios.
-const CAMPOS_OBRIGATORIOS = [
-  ['codigo_cliente', 'código do cliente'],
-  ['nome_cliente', 'nome do cliente'],
-  ['consultor', 'consultor'],
-  ['segmento', 'segmento'],
+const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
+  'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-// Ligações que permanecem em minúsculo na capitalização de nomes próprios.
+const PADRAO_CODIGO = /^CTI\d{3,}$/;
+const PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const CAMPOS_OBRIGATORIOS = {
+  codigo_cliente: 'Código do cliente',
+  nome_cliente: 'Nome do cliente',
+  email: 'E-mail',
+  consultor: 'Consultor',
+  segmento: 'Segmento',
+  nivel_cliente: 'Nível do cliente',
+  faturamento_anual: 'Faturamento anual',
+  servicos_contratados: 'Serviços contratados',
+  data_contratacao: 'Data de contratação',
+};
+export const COLUNAS_MODELO = [...Object.keys(CAMPOS_OBRIGATORIOS), 'cidade', 'uf'];
+
 const CONECTORES = ['de', 'da', 'do', 'das', 'dos', 'e'];
 
+const vazio = (valor) => valor === null || valor === undefined || String(valor).trim() === '';
+
 function capitalizar(texto) {
+  if (texto !== texto.toUpperCase() && texto !== texto.toLowerCase()) return texto;
   return texto
     .toLowerCase()
     .split(' ')
@@ -52,20 +75,20 @@ function capitalizar(texto) {
 function converterNumero(valor) {
   if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
 
-  const texto = String(valor ?? '').trim();
+  let texto = String(valor ?? '').replace(/R\$|\s/g, '');
   if (!texto) return null;
 
-  // "1.850.000,50" é pt-BR (vírgula decimal); "1850000.50" é padrão internacional.
-  const normalizado = texto.includes(',') ? texto.replace(/\./g, '').replace(',', '.') : texto;
-  const numero = Number(normalizado.replace(/[^\d.-]/g, ''));
-  return Number.isFinite(numero) ? numero : null;
+  const decimal = texto.lastIndexOf(',') > texto.lastIndexOf('.') ? ',' : '.';
+  texto = texto.split(decimal === ',' ? '.' : ',').join('');
+  if (texto.split(decimal).length > 2) texto = texto.split(decimal).join('');
+  texto = texto.replace(decimal, '.');
+
+  return /^-?\d+(\.\d+)?$/.test(texto) ? Number(texto) : null;
 }
 
 function converterData(valor) {
-  // Com cellDates a planilha já entrega um Date pronto.
   if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
 
-  // Número solto é o serial do Excel (dias contados a partir de 1900).
   if (typeof valor === 'number') {
     const partes = XLSX.SSF.parse_date_code(valor);
     return partes ? new Date(partes.y, partes.m - 1, partes.d) : null;
@@ -74,9 +97,12 @@ function converterData(valor) {
   const texto = String(valor ?? '').trim();
   if (!texto) return null;
 
-  // CSV costuma trazer dd/mm/aaaa, que o Date() nativo interpreta ao contrário.
-  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+  const br = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) {
+    const [, dia, mes, ano] = br.map(Number);
+    const data = new Date(ano, mes - 1, dia);
+    return data.getDate() === dia && data.getMonth() === mes - 1 ? data : null;
+  }
 
   const data = new Date(texto);
   return Number.isNaN(data.getTime()) ? null : data;
@@ -89,62 +115,91 @@ function separarServicos(valor) {
     .filter(Boolean);
 }
 
+function dataIso(data) {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${data.getFullYear()}-${mes}-${dia}`;
+}
+
+function normalizarLinha(linha, i) {
+  const nova = { numero_linha: (linha.__rowNum__ ?? i + 1) + 1 };
+  Object.entries(linha).forEach(([coluna, valor]) => {
+    nova[coluna.trim().toLowerCase().replace(/\s+/g, '_')] = valor;
+  });
+  return nova;
+}
+
+function contarPorTipo(lista, tipos) {
+  return Object.values(tipos).map((tipo) => ({
+    tipo,
+    quantidade: lista.filter((item) => item.tipo === tipo).length,
+  }));
+}
+
 export const useUploadStore = defineStore('upload', {
   state: () => ({
-    arquivo: null, // o File vindo do input, ainda não lido
-    dadosOriginais: [], // linhas exatamente como saíram da planilha
-    dadosTratados: [], // as mesmas linhas já padronizadas
-    erros: [], // mensagens de validação, uma por problema
-    carregando: false, // controla o texto "Lendo arquivo…" na tela
+    arquivo: null,
+    erroArquivo: '',
+    dataValidacao: null,
+    dadosOriginais: [],
+    dadosTratados: [],
+    erros: [],
+    avisos: [],
+    carregando: false,
+    importando: false,
+    resultadoImportacao: null,
+    erroImportacao: '',
   }),
 
   getters: {
-    totalClientes: (state) => state.dadosTratados.length,
-    totalErros: (state) => state.erros.length,
-    clientesNivelA: (state) => state.dadosTratados.filter((c) => c.nivel_cliente === 'A').length,
+    nomeArquivo: (state) => state.arquivo?.name || '',
     temDados: (state) => state.dadosTratados.length > 0,
+    totalRegistros: (state) => state.dadosTratados.length,
+    totalErros: (state) => state.erros.length,
+    totalAvisos: (state) => state.avisos.length,
 
-    // Quantos clientes por segmento, já com os nomes unificados pelo tratamento.
-    porSegmento: (state) =>
-      state.dadosTratados.reduce((acc, cliente) => {
-        const chave = cliente.segmento || 'Não informado';
-        acc[chave] = (acc[chave] || 0) + 1;
-        return acc;
-      }, {}),
+    errosEstrutura: (state) => state.erros.filter((e) => e.linha === 1),
 
-    // Soma só o que virou número de verdade; linha sem faturamento não entra.
-    faturamentoTotal: (state) =>
-      state.dadosTratados.reduce((total, c) => total + (c.faturamento_anual || 0), 0),
+    numerosLinhasComErro: (state) => new Set(state.erros.map((e) => e.linha)),
+    linhasValidas() {
+      return this.dadosTratados.filter((l) => !this.numerosLinhasComErro.has(l.numero_linha));
+    },
+    linhasComErro() {
+      return this.dadosTratados.filter((l) => this.numerosLinhasComErro.has(l.numero_linha));
+    },
+    registrosValidos() {
+      return this.linhasValidas.length;
+    },
+    registrosComErro() {
+      return this.linhasComErro.length;
+    },
+    percentualValidos() {
+      return this.totalRegistros ? (this.registrosValidos / this.totalRegistros) * 100 : 0;
+    },
 
-    // Quantas vezes cada serviço aparece, do mais contratado para o menos.
-    servicosMaisContratados: (state) => {
-      const contagem = state.dadosTratados.reduce((acc, cliente) => {
-        cliente.servicos_contratados.forEach((servico) => {
-          acc[servico] = (acc[servico] || 0) + 1;
-        });
-        return acc;
-      }, {});
-      return Object.entries(contagem).sort((a, b) => b[1] - a[1]);
+    errosPorTipo: (state) => contarPorTipo(state.erros, TIPOS_ERRO),
+    avisosPorTipo: (state) => contarPorTipo(state.avisos, TIPOS_AVISO),
+
+    podeEnviar() {
+      return this.errosEstrutura.length === 0 && this.registrosValidos > 0;
     },
   },
 
   actions: {
     selecionarArquivo(file) {
+      this.limpar();
       this.arquivo = file;
-      this.erros = [];
-      this.dadosOriginais = [];
-      this.dadosTratados = [];
     },
 
     validarArquivo() {
       if (!this.arquivo) {
-        this.erros.push('Selecione uma planilha.');
+        this.erroArquivo = 'Selecione uma planilha.';
         return false;
       }
 
       const nome = this.arquivo.name.toLowerCase();
       const valido = EXTENSOES_ACEITAS.some((ext) => nome.endsWith(ext));
-      if (!valido) this.erros.push(`Formato inválido. Use ${EXTENSOES_ACEITAS.join(', ')}.`);
+      if (!valido) this.erroArquivo = `Formato inválido. Use ${EXTENSOES_ACEITAS.join(', ')}.`;
       return valido;
     },
 
@@ -154,93 +209,201 @@ export const useUploadStore = defineStore('upload', {
       this.carregando = true;
       try {
         const buffer = await this.arquivo.arrayBuffer();
-        // cellDates faz o SheetJS devolver Date em vez do número de série do Excel.
         const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-        const planilha = workbook.Sheets[workbook.SheetNames[0]]; // sempre a primeira aba
+        const planilha = workbook.Sheets[workbook.SheetNames[0]];
         const linhas = XLSX.utils.sheet_to_json(planilha, { defval: '' });
 
-        if (!linhas.length) this.erros.push('A planilha está vazia ou não tem cabeçalho.');
+        if (!linhas.length) {
+          this.erroArquivo = 'A planilha está vazia ou não tem cabeçalho.';
+          return;
+        }
 
-        this.dadosOriginais = linhas;
-        this.dadosTratados = linhas.map((linha) => this.tratarLinha(linha));
+        this.dadosOriginais = linhas.map(normalizarLinha);
+        this.validarColunas();
+        this.dadosTratados = this.dadosOriginais.map((linha) => this.tratarLinha(linha));
         this.validarLinhas();
-      } catch {
-        this.erros.push('Não foi possível ler o arquivo. Ele pode estar corrompido.');
+        this.dataValidacao = new Date();
+      } catch (error) {
+        console.error(error);
+        this.erroArquivo = 'Não foi possível ler o arquivo. Ele pode estar corrompido.';
       } finally {
-        // No finally para que uma falha de leitura não deixe a tela travada em "Lendo…".
         this.carregando = false;
       }
     },
 
-    // Padroniza uma linha conforme a aba "dicionario_dados":
-    // String(campo || '') protege contra célula vazia, trim tira espaço sobrando
-    // e o mapa unifica IND./Industria/INDUSTRIA num único "Indústria".
-    tratarLinha(linha) {
-      const segmento = String(linha.segmento || '').trim().toUpperCase();
-
-      return {
-        ...linha, // preserva as colunas que não tratamos
-        codigo_cliente: String(linha.codigo_cliente || '').trim(),
-        nome_cliente: capitalizar(String(linha.nome_cliente || '').trim()),
-        consultor: capitalizar(String(linha.consultor || '').trim()),
-        segmento: MAPA_SEGMENTOS[segmento] || segmento,
-        nivel_cliente: String(linha.nivel_cliente || '').trim().toUpperCase(),
-        faturamento_anual: converterNumero(linha.faturamento_anual),
-        servicos_contratados: separarServicos(linha.servicos_contratados),
-        data_contratacao: converterData(linha.data_contratacao),
-        cidade: capitalizar(String(linha.cidade || '').trim()),
-        uf: String(linha.uf || '').trim().toUpperCase(),
-      };
+    registrarErro(linha, campo, tipo, descricao) {
+      this.erros.push({ linha, campo, tipo, descricao });
     },
 
-    validarLinhas() {
-      const codigosVistos = new Set();
+    registrarAviso(linha, campo, tipo, descricao) {
+      this.avisos.push({ linha, campo, tipo, descricao });
+    },
 
-      this.dadosTratados.forEach((cliente, i) => {
-        const linha = i + 2; // +2: a linha 1 é o cabeçalho e o índice começa em 0
-
-        CAMPOS_OBRIGATORIOS.forEach(([campo, rotulo]) => {
-          if (!cliente[campo]) this.erros.push(`Linha ${linha}: ${rotulo} vazio.`);
-        });
-
-        if (cliente.codigo_cliente) {
-          if (codigosVistos.has(cliente.codigo_cliente)) {
-            this.erros.push(`Linha ${linha}: código ${cliente.codigo_cliente} duplicado.`);
-          } else {
-            codigosVistos.add(cliente.codigo_cliente);
-          }
-        }
-
-        if (!NIVEIS_VALIDOS.includes(cliente.nivel_cliente)) {
-          this.erros.push(`Linha ${linha}: nível "${cliente.nivel_cliente || '—'}" inválido.`);
-        }
-
-        if (cliente.faturamento_anual === null) {
-          this.erros.push(`Linha ${linha}: faturamento anual vazio ou não numérico.`);
-        } else if (cliente.faturamento_anual < 0) {
-          this.erros.push(`Linha ${linha}: faturamento anual negativo.`);
-        }
-
-        if (!cliente.servicos_contratados.length) {
-          this.erros.push(`Linha ${linha}: nenhum serviço contratado informado.`);
-        }
-
-        if (!cliente.data_contratacao) {
-          this.erros.push(`Linha ${linha}: data de contratação inválida ou vazia.`);
-        }
-
-        // cidade e uf são opcionais: só valida o formato quando vierem preenchidos.
-        if (cliente.uf && cliente.uf.length !== 2) {
-          this.erros.push(`Linha ${linha}: UF "${cliente.uf}" deve ter 2 caracteres.`);
+    validarColunas() {
+      const colunas = Object.keys(this.dadosOriginais[0]);
+      Object.entries(CAMPOS_OBRIGATORIOS).forEach(([campo, rotulo]) => {
+        if (!colunas.includes(campo)) {
+          this.registrarErro(1, campo, TIPOS_ERRO.COLUNA, `A coluna "${campo}" (${rotulo}) não existe no cabeçalho.`);
         }
       });
     },
 
+    tratarLinha(linha) {
+      const numero = linha.numero_linha;
+
+      const texto = (campo, padronizar = (v) => v) => {
+        const original = typeof linha[campo] === 'string' ? linha[campo] : String(linha[campo] ?? '');
+        const limpo = original.trim().replace(/\s+/g, ' ');
+        if (limpo !== original) {
+          this.registrarAviso(numero, campo, TIPOS_AVISO.ESPACO, `Espaços extras removidos: "${original}" → "${limpo}".`);
+        }
+        const final = padronizar(limpo);
+        if (final !== limpo) {
+          this.registrarAviso(numero, campo, TIPOS_AVISO.PADRONIZADO, `"${limpo}" padronizado para "${final}".`);
+        }
+        return final;
+      };
+
+      return {
+        ...linha,
+        codigo_cliente: texto('codigo_cliente', (v) => v.toUpperCase()),
+        nome_cliente: texto('nome_cliente', capitalizar),
+        email: texto('email', (v) => v.toLowerCase()),
+        consultor: texto('consultor', capitalizar),
+        segmento: texto('segmento', (v) => MAPA_SEGMENTOS[v.toUpperCase()] || v),
+        nivel_cliente: texto('nivel_cliente', (v) => v.toUpperCase()),
+        faturamento_anual: converterNumero(linha.faturamento_anual),
+        servicos_contratados: separarServicos(linha.servicos_contratados),
+        data_contratacao: converterData(linha.data_contratacao),
+        cidade: texto('cidade', capitalizar),
+        uf: texto('uf', (v) => v.toUpperCase()),
+      };
+    },
+
+    validarLinhas() {
+      const colunasAusentes = new Set(this.errosEstrutura.map((e) => e.campo));
+      const hoje = new Date();
+      hoje.setHours(23, 59, 59, 999);
+
+      const vistos = { codigo_cliente: new Map(), email: new Map() };
+      const conferirDuplicado = (campo, rotulo, valor, numero) => {
+        if (!valor) return;
+        const primeira = vistos[campo].get(valor.toLowerCase());
+        if (primeira) {
+          this.registrarErro(numero, campo, TIPOS_ERRO.DUPLICADO, `${rotulo} "${valor}" já aparece na linha ${primeira}.`);
+        } else {
+          vistos[campo].set(valor.toLowerCase(), numero);
+        }
+      };
+
+      this.dadosTratados.forEach((cliente, i) => {
+        const original = this.dadosOriginais[i];
+        const numero = cliente.numero_linha;
+        const erro = (campo, tipo, descricao) => this.registrarErro(numero, campo, tipo, descricao);
+
+        Object.entries(CAMPOS_OBRIGATORIOS).forEach(([campo, rotulo]) => {
+          if (!colunasAusentes.has(campo) && vazio(original[campo])) {
+            erro(campo, TIPOS_ERRO.VAZIO, `${rotulo} não preenchido.`);
+          }
+        });
+
+        if (cliente.codigo_cliente && !PADRAO_CODIGO.test(cliente.codigo_cliente)) {
+          erro('codigo_cliente', TIPOS_ERRO.FORA_PADRAO, `Código "${cliente.codigo_cliente}" fora do padrão. Use CTI seguido de números (ex.: CTI001).`);
+        }
+
+        if (cliente.email && !PADRAO_EMAIL.test(cliente.email)) {
+          erro('email', TIPOS_ERRO.EMAIL, `"${cliente.email}" não é um e-mail válido (ex.: contato@empresa.com.br).`);
+        }
+
+        if (cliente.segmento && !SEGMENTOS_VALIDOS.includes(cliente.segmento)) {
+          erro('segmento', TIPOS_ERRO.FORA_PADRAO, `Segmento "${cliente.segmento}" não reconhecido. Use: ${SEGMENTOS_VALIDOS.join(', ')}.`);
+        }
+
+        if (cliente.nivel_cliente && !NIVEIS_VALIDOS.includes(cliente.nivel_cliente)) {
+          erro('nivel_cliente', TIPOS_ERRO.FORA_PADRAO, `Nível "${cliente.nivel_cliente}" inválido. Use A, B ou C.`);
+        }
+
+        if (!vazio(original.faturamento_anual)) {
+          if (cliente.faturamento_anual === null) {
+            erro('faturamento_anual', TIPOS_ERRO.FORA_PADRAO, `Faturamento "${original.faturamento_anual}" não é um número.`);
+          } else if (cliente.faturamento_anual < 0) {
+            erro('faturamento_anual', TIPOS_ERRO.FORA_PADRAO, 'Faturamento anual negativo.');
+          }
+        }
+
+        if (!vazio(original.servicos_contratados) && !cliente.servicos_contratados.length) {
+          erro('servicos_contratados', TIPOS_ERRO.FORA_PADRAO, 'Nenhum serviço informado. Separe os serviços com ";".');
+        }
+
+        if (!vazio(original.data_contratacao)) {
+          if (!cliente.data_contratacao) {
+            erro('data_contratacao', TIPOS_ERRO.FORA_PADRAO, `Data "${original.data_contratacao}" inválida. Use DD/MM/AAAA.`);
+          } else if (cliente.data_contratacao > hoje) {
+            erro('data_contratacao', TIPOS_ERRO.FORA_PADRAO, `Data ${cliente.data_contratacao.toLocaleDateString('pt-BR')} está no futuro.`);
+          }
+        }
+
+        if (cliente.uf && !UFS.includes(cliente.uf)) {
+          erro('uf', TIPOS_ERRO.FORA_PADRAO, `UF "${cliente.uf}" não existe.`);
+        }
+
+        conferirDuplicado('codigo_cliente', 'Código', cliente.codigo_cliente, numero);
+        conferirDuplicado('email', 'E-mail', cliente.email, numero);
+      });
+    },
+
+    async importarValidos() {
+      this.erroImportacao = '';
+      this.resultadoImportacao = null;
+
+      if (!this.podeEnviar) {
+        this.erroImportacao = 'Não há registros válidos para importar.';
+        return false;
+      }
+
+      const payload = this.linhasValidas.map((c) => ({
+        codigoCliente: c.codigo_cliente,
+        nomeCliente: c.nome_cliente,
+        email: c.email,
+        consultor: c.consultor,
+        segmento: c.segmento,
+        nivelCliente: c.nivel_cliente,
+        faturamentoAnual: c.faturamento_anual,
+        servicosContratados: c.servicos_contratados,
+        dataContratacao: dataIso(c.data_contratacao),
+        cidade: c.cidade || null,
+        uf: c.uf || null,
+      }));
+
+      this.importando = true;
+      try {
+        const resposta = await api.post('/api/clientes/importar', payload);
+        this.resultadoImportacao = resposta.data;
+        return true;
+      } catch (error) {
+        console.error(error);
+        this.erroImportacao =
+          error.response?.data?.message ||
+          (error.response
+            ? `O servidor recusou os dados (erro ${error.response.status}).`
+            : 'Servidor indisponível: não foi possível falar com o back-end.');
+        return false;
+      } finally {
+        this.importando = false;
+      }
+    },
+
     limpar() {
       this.arquivo = null;
+      this.erroArquivo = '';
+      this.dataValidacao = null;
       this.dadosOriginais = [];
       this.dadosTratados = [];
       this.erros = [];
+      this.avisos = [];
+      this.importando = false;
+      this.resultadoImportacao = null;
+      this.erroImportacao = '';
     },
   },
 });

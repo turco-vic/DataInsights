@@ -1,29 +1,30 @@
 import { defineStore } from 'pinia';
+import { TIPOS_ERRO } from './uploadStore';
 
-// Planilhas enviadas: cada upload tratado fica guardado aqui e no localStorage,
-// então Dashboard, Planilhas e Dataset trabalham com dados reais mesmo sem backend.
-// Quando o Spring Boot existir, salvar() vira um POST e o carregamento vira um GET.
 
 const STORAGE_KEY = 'di_planilhas';
 const ATIVA_KEY = 'di_planilha_ativa';
 
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
-// Campos obrigatórios do dicionário de dados, usados na métrica de completude.
 const OBRIGATORIOS = [
-  'codigo_cliente', 'nome_cliente', 'consultor', 'segmento',
+  'codigo_cliente', 'nome_cliente', 'email', 'consultor', 'segmento',
   'nivel_cliente', 'faturamento_anual', 'servicos_contratados', 'data_contratacao',
 ];
 
-// No JSON a data vira texto; ao carregar, volta a ser Date.
 function carregar() {
   try {
     const lista = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    lista.forEach((p) =>
+    lista.forEach((p) => {
       p.clientes.forEach((c) => {
         c.data_contratacao = c.data_contratacao ? new Date(c.data_contratacao) : null;
-      }),
-    );
+      });
+      p.erros = p.erros.map((e) =>
+        typeof e === 'string'
+          ? { linha: null, campo: '—', tipo: '—', descricao: e }
+          : e,
+      );
+    });
     return lista;
   } catch {
     return [];
@@ -57,7 +58,7 @@ function exemplo(v) {
 
 export const usePlanilhasStore = defineStore('planilhas', {
   state: () => ({
-    planilhas: carregar(), // da mais recente para a mais antiga
+    planilhas: carregar(),
     ativaId: localStorage.getItem(ATIVA_KEY),
   }),
 
@@ -88,7 +89,6 @@ export const usePlanilhasStore = defineStore('planilhas', {
       return contar(this.clientes.flatMap((c) => c.servicos_contratados));
     },
 
-    // Faturamento somado por segmento, do maior para o menor.
     faturamentoPorSegmento() {
       const soma = {};
       this.clientes.forEach((c) => {
@@ -98,7 +98,6 @@ export const usePlanilhasStore = defineStore('planilhas', {
       return Object.entries(soma).sort((a, b) => b[1] - a[1]);
     },
 
-    // Contratações por mês, preenchendo com zero os meses sem nenhuma.
     contratacoesPorMes() {
       const datas = this.clientes.map((c) => c.data_contratacao).filter(Boolean);
       if (!datas.length) return [];
@@ -128,6 +127,10 @@ export const usePlanilhasStore = defineStore('planilhas', {
       const p = this.ativa;
       if (!p || !p.totalLinhas) return [];
 
+      const duplicadas = new Set(
+        p.erros.filter((e) => e.tipo === TIPOS_ERRO.DUPLICADO).map((e) => e.linha),
+      ).size;
+
       const celulas = this.clientes.length * OBRIGATORIOS.length;
       const cheias = this.clientes.reduce(
         (t, c) => t + OBRIGATORIOS.filter((campo) => preenchido(c[campo])).length, 0);
@@ -135,7 +138,7 @@ export const usePlanilhasStore = defineStore('planilhas', {
       return [
         { label: 'Completude dos campos obrigatórios', pct: celulas ? (cheias / celulas) * 100 : 0 },
         { label: 'Linhas sem inconsistência', pct: ((p.totalLinhas - p.linhasComErro) / p.totalLinhas) * 100 },
-        { label: 'Registros únicos', pct: (this.clientes.length / p.totalLinhas) * 100 },
+        { label: 'Registros únicos', pct: ((p.totalLinhas - duplicadas) / p.totalLinhas) * 100 },
       ];
     },
 
@@ -180,28 +183,16 @@ export const usePlanilhasStore = defineStore('planilhas', {
   },
 
   actions: {
-    // Guarda o resultado de um upload. Reenviar um arquivo com o mesmo nome substitui o anterior.
-    salvar({ nome, autor, dadosTratados, erros }) {
-      // Duplicados ficam de fora dos indicadores ("manter único" no dicionário de dados).
-      const vistos = new Set();
-      const clientes = dadosTratados.filter((c) => {
-        if (!c.codigo_cliente) return true;
-        if (vistos.has(c.codigo_cliente)) return false;
-        vistos.add(c.codigo_cliente);
-        return true;
-      });
-
-      const linhasComErro = new Set(
-        erros.map((e) => e.match(/^Linha (\d+)/)?.[1]).filter(Boolean),
-      ).size;
+    salvar({ nome, autor, linhasValidas, totalLinhas, erros }) {
+      const clientes = linhasValidas.map(({ numero_linha, ...cliente }) => cliente);
 
       const planilha = {
         id: `${Date.now()}`,
         nome,
         autor,
         enviadaEm: new Date().toISOString(),
-        totalLinhas: dadosTratados.length,
-        linhasComErro,
+        totalLinhas,
+        linhasComErro: totalLinhas - clientes.length,
         erros,
         status: erros.length ? 'erro' : 'processado',
         clientes,
@@ -215,7 +206,6 @@ export const usePlanilhasStore = defineStore('planilhas', {
         this.persistir();
         return true;
       } catch {
-        // localStorage tem ~5 MB: planilha grande demais fica só na memória, até o F5.
         return false;
       }
     },

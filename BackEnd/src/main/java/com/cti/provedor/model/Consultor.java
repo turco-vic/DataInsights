@@ -18,11 +18,9 @@ public class Consultor {
 
     private String matricula;
 
-    // nullable no banco para nao quebrar linhas antigas; a obrigatoriedade fica no Service
     @Column(unique = true)
     private String email;
 
-    // guarda o hash BCrypt; entra no JSON como "senha" e nunca e devolvida
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String senha;
 

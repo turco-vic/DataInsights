@@ -21,7 +21,6 @@ const salvo = ref(false);
 const campo = 'w-full rounded-lg border border-navy/15 bg-mist px-3.5 py-2.5 text-[15px] text-navy outline-none transition focus:border-sky focus:bg-white focus:ring-4 focus:ring-sky/10';
 
 function salvar() {
-  // TODO: persistir perfil e preferências no backend.
   salvo.value = true;
   setTimeout(() => { salvo.value = false; }, 2500);
 }

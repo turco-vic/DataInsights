@@ -4,16 +4,15 @@ import { usePlanilhasStore } from '../../stores/planilhasStore';
 import SemPlanilhas from '../../components/SemPlanilhas.vue';
 import { moeda, moedaCompacta, dataHora } from '../../utils/formato';
 
-// Tudo aqui vem da planilha ativa guardada no planilhasStore — nenhum dado fixo.
 const planilhas = usePlanilhasStore();
 const p = computed(() => planilhas.ativa);
 
 const kpis = computed(() => {
   const total = planilhas.clientes.length;
   const nivelA = planilhas.porNivel[0][1];
-  const duplicadas = p.value.totalLinhas - total;
+  const descartadas = p.value.totalLinhas - total;
   return [
-    { label: 'Clientes', value: total, sub: duplicadas ? `${duplicadas} duplicado(s) removido(s)` : `${p.value.totalLinhas} linhas lidas` },
+    { label: 'Clientes', value: total, sub: descartadas ? `${descartadas} linha(s) com erro descartada(s)` : `${p.value.totalLinhas} linhas lidas` },
     { label: 'Faturamento anual', value: moedaCompacta(planilhas.faturamentoTotal), sub: `média de ${moedaCompacta(planilhas.faturamentoMedio)} por cliente` },
     { label: 'Clientes nível A', value: nivelA, sub: `${total ? Math.round((nivelA / total) * 100) : 0}% da carteira` },
     { label: 'Inconsistências', value: p.value.erros.length, sub: `em ${p.value.linhasComErro} linha(s)`, alerta: p.value.erros.length > 0 },
@@ -26,7 +25,6 @@ const meses = computed(() => {
   return lista.map((m) => ({ ...m, altura: (m.quantidade / maximo) * 100 }));
 });
 
-// Três maiores segmentos + "Outros", para o donut continuar legível.
 const CORES = ['var(--color-navy)', 'var(--color-ocean)', 'var(--color-sky)', 'color-mix(in srgb, var(--color-navy) 14%, transparent)'];
 const segmentos = computed(() => {
   const total = planilhas.clientes.length || 1;

@@ -1,11 +1,9 @@
-// Formatação pt-BR compartilhada pelas telas.
 
 export function moeda(valor) {
   if (typeof valor !== 'number') return '—';
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
-// R$ 78,9 M · R$ 780 mil — para cards e rótulos curtos.
 export function moedaCompacta(valor) {
   if (typeof valor !== 'number') return '—';
   if (valor >= 1e6) return `R$ ${(valor / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} M`;

@@ -7,6 +7,7 @@ import NotFound from '../views/NotFound.vue';
 import AppShell from '../layouts/AppShell.vue';
 import Dashboard from '../views/app/Dashboard.vue';
 import Upload from '../views/app/Upload.vue';
+import Relatorio from '../views/app/Relatorio.vue';
 import Files from '../views/app/Files.vue';
 import Dataset from '../views/app/Dataset.vue';
 import Users from '../views/app/Users.vue';
@@ -28,6 +29,7 @@ const router = createRouter({
       children: [
         { path: '', component: Dashboard },
         { path: 'upload', component: Upload },
+        { path: 'relatorio', component: Relatorio },
         { path: 'planilhas', component: Files },
         { path: 'dataset', component: Dataset },
         { path: 'usuarios', component: Users },
@@ -38,9 +40,7 @@ const router = createRouter({
   ],
 });
 
-// Guarda: rotas do app exigem sessão. Sem token, volta ao login guardando o destino.
 router.beforeEach((to) => {
-  // useAuthStore() dentro do guard: no topo do arquivo o Pinia ainda não existe.
   if (to.meta.requiresAuth && !useAuthStore().logado) {
     return { path: '/login', query: { redirect: to.fullPath } };
   }

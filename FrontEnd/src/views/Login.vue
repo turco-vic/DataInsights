@@ -29,7 +29,6 @@ async function entrar() {
 
 <template>
   <div class="grid min-h-screen grid-cols-1 bg-mist text-navy lg:grid-cols-2">
-    <!-- painel institucional -->
     <div class="hidden min-h-screen flex-col justify-between bg-navy px-15 py-14 lg:flex">
       <button type="button" @click="router.push('/')"
         class="inline-flex items-center gap-2 text-sm font-medium text-white/70 transition hover:text-white">
@@ -62,7 +61,6 @@ async function entrar() {
       <div class="text-[13px] text-white/40">© 2026 DataInsights</div>
     </div>
 
-    <!-- formulário -->
     <div class="flex items-center justify-center px-6 py-14 sm:px-10">
       <div class="w-full max-w-105">
         <RouterLink to="/" class="mb-8 inline-flex items-center gap-2 text-sm font-medium text-navy/60 hover:text-ocean lg:hidden">
