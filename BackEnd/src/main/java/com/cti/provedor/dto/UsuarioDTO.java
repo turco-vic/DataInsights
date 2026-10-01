@@ -11,13 +11,14 @@ import lombok.Setter;
 public class UsuarioDTO {
 
     @NotBlank
+    @Size(max = 150)
     private String nome;
 
     @NotBlank
     @Email
     private String email;
 
-    @NotBlank
+    /** Obrigatória no cadastro; na atualização, se vier vazia a senha atual é mantida. */
     @Size(min = 6)
     private String senha;
 }

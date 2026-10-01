@@ -6,38 +6,59 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cti.provedor.dto.ConsultorDTO;
+import com.cti.provedor.dto.LoginDTO;
+import com.cti.provedor.dto.LoginRespostaDTO;
+import com.cti.provedor.exception.AuthException;
+import com.cti.provedor.exception.ConflitoException;
+import com.cti.provedor.exception.RecursoNaoEncontradoException;
+import com.cti.provedor.exception.RegraNegocioException;
 import com.cti.provedor.model.Consultor;
+import com.cti.provedor.repository.ClienteRepository;
 import com.cti.provedor.repository.ConsultorRepository;
 
 @Service
 public class ConsultorService {
 
     private final ConsultorRepository repository;
+    private final ClienteRepository clienteRepository;
     private final PasswordEncoder encoder;
+    private final JwtService jwtService;
 
-    public ConsultorService(ConsultorRepository repository, PasswordEncoder encoder) {
+    public ConsultorService(ConsultorRepository repository, ClienteRepository clienteRepository,
+            PasswordEncoder encoder, JwtService jwtService) {
         this.repository = repository;
+        this.clienteRepository = clienteRepository;
         this.encoder = encoder;
+        this.jwtService = jwtService;
+    }
+
+    public LoginRespostaDTO login(LoginDTO dto) {
+        Consultor consultor = repository.findByEmailIgnoreCase(dto.getEmail().trim())
+                .orElseThrow(AuthException::new);
+        if (consultor.getSenha() == null || !encoder.matches(dto.getSenha(), consultor.getSenha())) {
+            throw new AuthException();
+        }
+        String token = jwtService.gerar(consultor.getId(), consultor.getNome(), consultor.getEmail(),
+                JwtService.TIPO_CONSULTOR);
+        return new LoginRespostaDTO(token, consultor.getId(), consultor.getNome(), consultor.getEmail(),
+                JwtService.TIPO_CONSULTOR);
     }
 
     @Transactional
-    public Consultor criar(Consultor consultor) {
-        validar(consultor);
-        if (repository.findByEmail(consultor.getEmail()).isPresent()) {
-            throw new RuntimeException("E-mail já cadastrado");
+    public Consultor criar(ConsultorDTO dto) {
+        if (dto.getSenha() == null || dto.getSenha().isBlank()) {
+            throw new RegraNegocioException("Senha é obrigatória");
         }
-        consultor.setId(null);
-        consultor.setSenha(encoder.encode(consultor.getSenha()));
-        return repository.save(consultor);
-    }
+        String email = normalizarEmail(dto.getEmail());
+        if (repository.existsByEmailIgnoreCase(email)) {
+            throw new ConflitoException("E-mail já cadastrado");
+        }
 
-    public Consultor login(String email, String senha) {
-        Consultor consultor = repository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Consultor não encontrado"));
-        if (senha == null || consultor.getSenha() == null || !encoder.matches(senha, consultor.getSenha())) {
-            throw new RuntimeException("Senha inválida");
-        }
-        return consultor;
+        Consultor consultor = new Consultor();
+        preencher(consultor, dto, email);
+        consultor.setSenha(encoder.encode(dto.getSenha()));
+        return repository.save(consultor);
     }
 
     public List<Consultor> listar() {
@@ -46,40 +67,41 @@ public class ConsultorService {
 
     public Consultor buscarPorId(Long id) {
         return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Consultor não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Consultor não encontrado"));
     }
 
     @Transactional
-    public Consultor atualizar(Long id, Consultor dados) {
+    public Consultor atualizar(Long id, ConsultorDTO dto) {
         Consultor consultor = buscarPorId(id);
-        validar(dados);
-        repository.findByEmail(dados.getEmail())
-                .filter(outro -> !outro.getId().equals(id))
-                .ifPresent(outro -> {
-                    throw new RuntimeException("E-mail já cadastrado");
-                });
-        consultor.setNome(dados.getNome());
-        consultor.setMatricula(dados.getMatricula());
-        consultor.setEmail(dados.getEmail());
-        consultor.setSenha(encoder.encode(dados.getSenha()));
+        String email = normalizarEmail(dto.getEmail());
+        if (repository.existsByEmailIgnoreCaseAndIdNot(email, id)) {
+            throw new ConflitoException("E-mail já cadastrado");
+        }
+
+        preencher(consultor, dto, email);
+        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+            consultor.setSenha(encoder.encode(dto.getSenha()));
+        }
         return repository.save(consultor);
     }
 
     @Transactional
     public void excluir(Long id) {
         Consultor consultor = buscarPorId(id);
-        repository.deleteById(consultor.getId());
+        long clientes = clienteRepository.countByConsultorId(id);
+        if (clientes > 0) {
+            throw new ConflitoException("Consultor possui " + clientes + " cliente(s) vinculado(s)");
+        }
+        repository.delete(consultor);
     }
 
-    private void validar(Consultor consultor) {
-        if (consultor.getNome() == null || consultor.getNome().isBlank()) {
-            throw new RuntimeException("Nome é obrigatório");
-        }
-        if (consultor.getEmail() == null || consultor.getEmail().isBlank()) {
-            throw new RuntimeException("E-mail é obrigatório");
-        }
-        if (consultor.getSenha() == null || consultor.getSenha().isBlank()) {
-            throw new RuntimeException("Senha é obrigatória");
-        }
+    private void preencher(Consultor consultor, ConsultorDTO dto, String email) {
+        consultor.setNome(dto.getNome().trim());
+        consultor.setMatricula(dto.getMatricula());
+        consultor.setEmail(email);
+    }
+
+    private String normalizarEmail(String email) {
+        return email.trim().toLowerCase();
     }
 }

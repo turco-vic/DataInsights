@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import * as XLSX from 'xlsx';
-import api from '../services/api';
+import api, { mensagemErro } from '../services/api';
 
 export const TIPOS_ERRO = {
   COLUNA: 'Coluna ausente',
@@ -382,11 +382,10 @@ export const useUploadStore = defineStore('upload', {
         return true;
       } catch (error) {
         console.error(error);
-        this.erroImportacao =
-          error.response?.data?.message ||
-          (error.response
-            ? `O servidor recusou os dados (erro ${error.response.status}).`
-            : 'Servidor indisponível: não foi possível falar com o back-end.');
+        this.erroImportacao = mensagemErro(
+          error,
+          `O servidor recusou os dados (erro ${error.response?.status}).`,
+        );
         return false;
       } finally {
         this.importando = false;

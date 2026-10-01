@@ -1,42 +1,34 @@
 package com.cti.provedor.controller;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cti.provedor.dto.LoginDTO;
-import com.cti.provedor.exception.AuthException;
-import com.cti.provedor.model.Usuario;
-import com.cti.provedor.repository.UsuarioRepository;
-import com.cti.provedor.service.JwtService;
+import com.cti.provedor.dto.LoginRespostaDTO;
+import com.cti.provedor.service.ConsultorService;
+import com.cti.provedor.service.UsuarioService;
 
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/usuarios")
 public class AuthController {
 
-    private final UsuarioRepository repository;
-    private final PasswordEncoder encoder;
-    private final JwtService jwtService;
+    private final UsuarioService usuarioService;
+    private final ConsultorService consultorService;
 
-    public AuthController(UsuarioRepository repository, PasswordEncoder encoder, JwtService jwtService) {
-        this.repository = repository;
-        this.encoder = encoder;
-        this.jwtService = jwtService;
+    public AuthController(UsuarioService usuarioService, ConsultorService consultorService) {
+        this.usuarioService = usuarioService;
+        this.consultorService = consultorService;
     }
 
-    @PostMapping("/login")
-    public String login(@Valid @RequestBody LoginDTO dto) {
-        Usuario u = repository.findByEmail(dto.getEmail())
-                .orElseThrow(AuthException::new);
+    @PostMapping("/api/usuarios/login")
+    public LoginRespostaDTO loginUsuario(@Valid @RequestBody LoginDTO dto) {
+        return usuarioService.login(dto);
+    }
 
-        if (encoder.matches(dto.getSenha(), u.getSenhaHash())) {
-            return jwtService.gerar(u);
-        }
-
-        throw new AuthException();
+    @PostMapping("/api/consultores/login")
+    public LoginRespostaDTO loginConsultor(@Valid @RequestBody LoginDTO dto) {
+        return consultorService.login(dto);
     }
 }

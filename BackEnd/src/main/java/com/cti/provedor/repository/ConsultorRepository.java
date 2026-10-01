@@ -8,7 +8,11 @@ import com.cti.provedor.model.Consultor;
 
 public interface ConsultorRepository extends JpaRepository<Consultor, Long> {
 
-    Optional<Consultor> findByEmail(String email);
+    Optional<Consultor> findByEmailIgnoreCase(String email);
 
     Optional<Consultor> findFirstByNomeIgnoreCase(String nome);
+
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 }

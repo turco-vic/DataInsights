@@ -1,5 +1,6 @@
 package com.cti.provedor.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.util.List;
 
@@ -16,6 +17,7 @@ public class Servico {
 
     private String categoria;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "servico")
     private List<Contrato> contratos;
 

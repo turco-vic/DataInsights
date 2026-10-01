@@ -11,4 +11,14 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     Optional<Cliente> findByCodigo(String codigo);
 
     boolean existsByEmailIgnoreCaseAndCodigoNot(String email, String codigo);
+
+    boolean existsByCodigo(String codigo);
+
+    boolean existsByCodigoAndIdNot(String codigo, Long id);
+
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
+    long countByConsultorId(Long consultorId);
 }

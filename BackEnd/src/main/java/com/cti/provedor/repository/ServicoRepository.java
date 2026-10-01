@@ -9,4 +9,8 @@ import com.cti.provedor.model.Servico;
 public interface ServicoRepository extends JpaRepository<Servico, Long> {
 
     Optional<Servico> findFirstByNomeIgnoreCase(String nome);
+
+    boolean existsByNomeIgnoreCase(String nome);
+
+    boolean existsByNomeIgnoreCaseAndIdNot(String nome, Long id);
 }

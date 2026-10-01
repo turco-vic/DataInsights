@@ -4,6 +4,7 @@ import { RouterLink, useRouter, useRoute } from 'vue-router';
 import AppLogo from '../components/AppLogo.vue';
 import Icon from '../components/Icon.vue';
 import { useAuthStore } from '../stores/authStore';
+import { mensagemErro } from '../services/api';
 
 const router = useRouter();
 const route = useRoute();
@@ -19,11 +20,15 @@ const mensagem = ref('');
 async function entrar() {
   mensagem.value = '';
   entrando.value = true;
-  const ok = await auth.login(email.value.trim(), senha.value);
-  entrando.value = false;
-
-  if (ok) router.push(route.query.redirect || '/app');
-  else mensagem.value = 'Preencha e-mail e senha.';
+  try {
+    const ok = await auth.login(email.value.trim(), senha.value);
+    if (ok) router.push(route.query.redirect || '/app');
+    else mensagem.value = 'Preencha e-mail e senha.';
+  } catch (error) {
+    mensagem.value = mensagemErro(error, 'E-mail ou senha inválidos.');
+  } finally {
+    entrando.value = false;
+  }
 }
 </script>
 

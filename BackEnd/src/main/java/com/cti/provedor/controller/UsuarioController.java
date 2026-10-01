@@ -40,12 +40,18 @@ public class UsuarioController {
         return service.listar();
     }
 
+    @GetMapping("/{id}")
+    public Usuario buscar(@PathVariable Long id) {
+        return service.buscarPorId(id);
+    }
+
     @PutMapping("/{id}")
     public Usuario atualizar(@PathVariable Long id, @Valid @RequestBody UsuarioDTO dto) {
         return service.atualizar(id, dto);
     }
 
     @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remover(@PathVariable Long id) {
         service.remover(id);
     }

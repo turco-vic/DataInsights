@@ -1,5 +1,6 @@
 package com.cti.provedor.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,12 +38,15 @@ public class Cliente {
     @JoinColumn(name = "consultor_id")
     private Consultor consultor;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "cliente")
     private List<Contrato> contratos;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "cliente")
     private List<Insight> insights;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "cliente")
     private List<Telemetria> telemetrias = new ArrayList<>();
 

@@ -4,9 +4,12 @@ import { RouterLink, useRouter } from 'vue-router';
 import AppLogo from '../components/AppLogo.vue';
 import Icon from '../components/Icon.vue';
 import { useAuthStore } from '../stores/authStore';
+import { mensagemErro } from '../services/api';
 
 const router = useRouter();
 const auth = useAuthStore();
+const enviando = ref(false);
+const mensagem = ref('');
 const nome = ref('');
 const empresa = ref('');
 const email = ref('');
@@ -26,7 +29,15 @@ const forca = computed(() => {
 const forcaTom = ['bg-navy/15', 'bg-red-500', 'bg-amber-500', 'bg-emerald-600'];
 
 async function criarConta() {
-  if (await auth.login(email.value.trim(), senha.value, nome.value)) router.push('/app');
+  mensagem.value = '';
+  enviando.value = true;
+  try {
+    if (await auth.cadastrar(nome.value.trim(), email.value.trim(), senha.value)) router.push('/app');
+  } catch (error) {
+    mensagem.value = mensagemErro(error, 'Não foi possível criar a conta.');
+  } finally {
+    enviando.value = false;
+  }
 }
 </script>
 
@@ -58,7 +69,7 @@ async function criarConta() {
           </label>
           <label class="flex flex-col gap-2">
             <span class="text-[13px] font-semibold text-navy">Senha</span>
-            <input v-model="senha" type="password" required placeholder="Mínimo de 8 caracteres" :class="campo" />
+            <input v-model="senha" type="password" required minlength="6" placeholder="Mínimo de 6 caracteres" :class="campo" />
             <span class="mt-0.5 flex gap-1.5">
               <span v-for="i in 3" :key="i" class="h-1 flex-1 rounded-sm transition-colors" :class="i <= forca ? forcaTom[forca] : 'bg-navy/15'"></span>
             </span>
@@ -67,7 +78,10 @@ async function criarConta() {
             <input v-model="aceito" type="checkbox" required class="mt-0.5 h-4 w-4 accent-ocean" />
             Concordo com os <a href="#termos" class="font-semibold text-ocean">termos de uso</a> e a <a href="#privacidade" class="font-semibold text-ocean">política de privacidade</a>.
           </label>
-          <button type="submit" class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy">Criar conta</button>
+          <button type="submit" :disabled="enviando" class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy disabled:opacity-60">
+            {{ enviando ? 'Criando…' : 'Criar conta' }}
+          </button>
+          <p v-if="mensagem" class="text-sm font-medium text-red-700">{{ mensagem }}</p>
         </form>
 
         <div class="mt-6 border-t border-navy/10 pt-5 text-sm text-navy/60">
