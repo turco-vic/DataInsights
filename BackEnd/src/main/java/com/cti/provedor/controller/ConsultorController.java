@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cti.provedor.dto.ConsultorDTO;
+import com.cti.provedor.dto.ResumoDTOs;
 import com.cti.provedor.model.Consultor;
 import com.cti.provedor.service.ConsultorService;
 
@@ -36,8 +37,8 @@ public class ConsultorController {
     }
 
     @GetMapping
-    public List<Consultor> listar() {
-        return service.listar();
+    public List<ResumoDTOs.Consultor> listar() {
+        return service.listarResumo();
     }
 
     @GetMapping("/{id}")

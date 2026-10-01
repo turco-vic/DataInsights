@@ -2,7 +2,11 @@
 import { RouterLink } from 'vue-router';
 import Icon from './Icon.vue';
 
-defineProps({ texto: { type: String, default: 'Envie uma planilha para ver os dados aqui.' } });
+defineProps({
+  texto: { type: String, default: 'Envie uma planilha para ver os dados aqui.' },
+  titulo: { type: String, default: 'Nenhuma planilha enviada' },
+  mostrarBotao: { type: Boolean, default: true },
+});
 </script>
 
 <template>
@@ -10,9 +14,9 @@ defineProps({ texto: { type: String, default: 'Envie uma planilha para ver os da
     <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky/10 text-ocean">
       <Icon name="document" class="h-6 w-6" />
     </div>
-    <h2 class="mt-5 text-xl font-bold tracking-tight text-navy">Nenhuma planilha enviada</h2>
+    <h2 class="mt-5 text-xl font-bold tracking-tight text-navy">{{ titulo }}</h2>
     <p class="mx-auto mt-2 max-w-100 text-sm leading-relaxed text-navy/60">{{ texto }}</p>
-    <RouterLink to="/app/upload" class="mt-6 inline-block rounded-lg bg-ocean px-7 py-3 text-sm font-semibold text-white transition hover:bg-navy">
+    <RouterLink v-if="mostrarBotao" to="/app/upload" class="mt-6 inline-block rounded-lg bg-ocean px-7 py-3 text-sm font-semibold text-white transition hover:bg-navy">
       Enviar planilha
     </RouterLink>
   </div>

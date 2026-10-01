@@ -37,8 +37,9 @@ public class TelemetriaController {
     }
 
     @GetMapping
-    public List<Telemetria> listar(@RequestParam(required = false) Long clienteId) {
-        return service.listar(clienteId);
+    public List<Telemetria> listar(@RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) String evento) {
+        return service.listar(clienteId, evento);
     }
 
     @GetMapping("/{id}")

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,8 +44,12 @@ public class ClienteController {
     }
 
     @GetMapping
-    public List<Cliente> listar() {
-        return service.listar();
+    public List<Cliente> listar(@RequestParam(required = false) String busca,
+            @RequestParam(required = false) String segmento,
+            @RequestParam(required = false) String nivel,
+            @RequestParam(required = false) String uf,
+            @RequestParam(required = false) Long consultorId) {
+        return service.listar(busca, segmento, nivel, uf, consultorId);
     }
 
     @GetMapping("/{id}")

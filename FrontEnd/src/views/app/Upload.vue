@@ -1,18 +1,28 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import Icon from '../../components/Icon.vue';
 import { useUploadStore, COLUNAS_MODELO } from '../../stores/uploadStore';
+import { useAuthStore } from '../../stores/authStore';
 
 const router = useRouter();
 const upload = useUploadStore();
+const auth = useAuthStore();
 const inputArquivo = ref(null);
 
-const etapas = [
-  { t: '1 · Leitura', d: 'Cabeçalho conferido e espaços extras removidos.', c: 'text-navy' },
+const tratar = computed(() => auth.usuario?.prefs?.tratarDados !== false);
+
+const etapas = computed(() => [
+  {
+    t: '1 · Leitura',
+    d: tratar.value
+      ? 'Cabeçalho conferido, espaços extras removidos e textos padronizados.'
+      : 'Cabeçalho conferido. O tratamento automático está desligado: divergências viram erros.',
+    c: 'text-navy',
+  },
   { t: '2 · Validação', d: 'Campos vazios, e-mails, duplicados e formatos verificados.', c: 'text-ocean' },
   { t: '3 · Relatório', d: 'Você revisa os problemas e confirma o envio.', c: 'text-sky' },
-];
+]);
 
 function abrirSeletor() {
   inputArquivo.value?.click();
@@ -20,7 +30,7 @@ function abrirSeletor() {
 
 async function processar(arquivo) {
   upload.selecionarArquivo(arquivo);
-  await upload.processarPlanilha();
+  await upload.processarPlanilha({ tratar: tratar.value });
   if (inputArquivo.value) inputArquivo.value.value = '';
   if (upload.temDados) router.push('/app/relatorio');
 }

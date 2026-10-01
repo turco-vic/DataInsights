@@ -1,13 +1,18 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import SemPlanilhas from '../../components/SemPlanilhas.vue';
+import { useAuthStore } from '../../stores/authStore';
 import { usePlanilhasStore } from '../../stores/planilhasStore';
 import { dataHora, moedaCompacta, porcentagem } from '../../utils/formato';
 
 const router = useRouter();
+const auth = useAuthStore();
 const planilhas = usePlanilhasStore();
 const p = computed(() => planilhas.ativa);
+const carregando = computed(() => !p.value && (planilhas.carregando || planilhas.carregandoDetalhe || !planilhas.carregada));
+
+onMounted(() => planilhas.garantirAtiva());
 
 const tab = ref('resumo');
 const tabs = [
@@ -33,7 +38,11 @@ const niveis = computed(() => {
 
 <template>
   <div>
-    <SemPlanilhas v-if="!p" texto="O relatório do dataset aparece depois do primeiro upload." />
+    <p v-if="planilhas.erro || planilhas.erroDetalhe" class="rounded-xl border border-red-500/30 bg-red-50 px-5 py-4 text-sm font-medium text-red-800">
+      {{ planilhas.erro || planilhas.erroDetalhe }}
+    </p>
+    <p v-else-if="carregando" class="text-sm text-navy/55">Carregando planilha…</p>
+    <SemPlanilhas v-else-if="!p" texto="O relatório do dataset aparece depois do primeiro upload." :mostrar-botao="auth.podeEditar" />
 
     <template v-else>
       <div class="mb-3 text-[13px] font-medium text-navy/50">
@@ -45,14 +54,24 @@ const niveis = computed(() => {
           <p class="mt-1.5 text-sm text-navy/60">
             Enviado por {{ p.autor }} · {{ dataHora(p.enviadaEm) }} · {{ p.totalLinhas }} linhas · {{ planilhas.colunas.length }} colunas
           </p>
+          <p class="mt-1 text-sm text-navy/60">
+            Importação: {{ p.criados }} cliente(s) criado(s), {{ p.atualizados }} atualizado(s){{ p.rejeitados.length ? `, ${p.rejeitados.length} recusado(s) pelo servidor` : '' }}
+          </p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-3 print:hidden">
+          <select
+            v-if="planilhas.lista.length > 1" :value="p.id" aria-label="Escolher planilha"
+            class="rounded-lg border border-navy/15 bg-white px-3.5 py-2 text-[13px] font-semibold text-navy outline-none focus:border-sky"
+            @change="planilhas.selecionar($event.target.value)"
+          >
+            <option v-for="item in planilhas.lista" :key="item.id" :value="String(item.id)">{{ item.nomeArquivo }} · {{ dataHora(item.enviadaEm) }}</option>
+          </select>
           <button type="button" @click="imprimir" class="rounded-lg border border-navy/15 bg-white px-5 py-2.5 text-sm font-medium text-navy/70 transition hover:text-navy">Imprimir / PDF</button>
           <button type="button" @click="router.push('/app')" class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy">Abrir dashboard</button>
         </div>
       </div>
 
-      <div class="my-6 flex gap-6 border-b border-navy/10">
+      <div class="my-6 flex gap-6 border-b border-navy/10 print:hidden">
         <button
           v-for="t in tabs" :key="t.id" type="button" @click="tab = t.id"
           class="-mb-px border-b-2 px-0.5 pb-3 text-sm font-semibold transition"
@@ -86,6 +105,12 @@ const niveis = computed(() => {
               · <span v-if="erro.linha" class="font-semibold">Linha {{ erro.linha }}</span>
               <span v-if="erro.campo !== '—'"> ({{ erro.campo }})</span>: {{ erro.descricao }}
             </li>
+          </ul>
+        </div>
+        <div v-if="p.rejeitados.length" class="rounded-xl border border-amber-500/30 bg-amber-50 px-6 py-5 lg:col-span-2">
+          <h2 class="text-sm font-bold text-amber-800">{{ p.rejeitados.length }} registro(s) recusado(s) pelo servidor na importação</h2>
+          <ul class="mt-2 space-y-1 text-[13px] leading-relaxed text-amber-900/80">
+            <li v-for="(r, i) in p.rejeitados" :key="i">· <span class="font-semibold">{{ r.codigoCliente || '—' }}</span>: {{ r.motivo }}</li>
           </ul>
         </div>
       </div>

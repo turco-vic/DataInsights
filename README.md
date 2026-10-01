@@ -10,28 +10,56 @@ Projeto Integrador desenvolvido para a disciplina de Framework Front-End (SENAI)
 
 ## ✨ Funcionalidades
 
-- **Upload Simples** — envie planilhas `.xlsx`, `.xls` ou `.csv` com apenas um clique
-- **Tratamento de Dados** — padronização e limpeza automática no próprio navegador
+- **Upload Simples** — envie planilhas `.xlsx`, `.xls` ou `.csv` (até 50 MB)
+- **Tratamento de Dados** — padronização e limpeza automática no navegador (pode ser desligada em Configurações)
 - **Validação** — campos obrigatórios vazios, códigos duplicados e níveis inválidos são apontados linha a linha
-- **Gráficos Automáticos** — visualize os dados em tempo real
-- **Insights Estratégicos** — KPIs e relatórios detalhados para a empresa
+- **Histórico de Planilhas** — cada envio fica guardado no servidor, com erros, recusas e relatório do dataset
+- **Dashboard da Carteira** — KPIs e gráficos calculados sobre todos os clientes do banco
+- **Cadastros** — clientes (com contratos, insights e atividade), consultores e serviços
+- **Insights Automáticos** — oportunidades e alertas por cliente, gerados a cada importação
+- **Usuários e Papéis** — administrador, analista e leitor; consultores com acesso de consulta
+- **Conta** — perfil, preferências, troca de senha, recuperação de senha por e-mail e resumo semanal
+- **Telemetria** — registro de logins, importações, exclusões e trocas de senha
 
 ## 🗺️ Fluxo de Telas
 
-1. **Apresentação** — landing page institucional do sistema
-2. **Login** — autenticação segura para funcionários autorizados
-3. **Upload** — envio e processamento da planilha Excel
-4. **Dashboards** — análise visual, KPIs e relatórios detalhados
+1. **Apresentação** — landing page, termos de uso e política de privacidade
+2. **Acesso** — login (equipe ou consultor), cadastro, recuperação e redefinição de senha
+3. **Análise** — dashboard, upload, relatório de validação, planilhas enviadas e relatório do dataset
+4. **Cadastros** — clientes e detalhe do cliente, consultores, serviços e insights
+5. **Administração** — usuários, telemetria e configurações
+
+## 👥 Papéis
+
+| Papel | Pode |
+|-------|------|
+| Administrador | tudo, inclusive gerenciar usuários e ver a telemetria |
+| Analista | enviar planilhas e manter clientes, contratos, serviços, consultores e insights |
+| Leitor | consultar dashboard, clientes e relatórios |
+| Consultor | consultar (entra pela opção "Consultor" no login) |
+
+A primeira conta cadastrada vira administradora. As seguintes começam como leitoras
+(configurável) e são promovidas na tela de Usuários.
 
 ## 🛠️ Tecnologias
 
+**Front-end**
+
 - [Vue.js 3](https://vuejs.org/) — framework front-end
-- [Vite](https://vitejs.dev/) — build tool e servidor de desenvolvimento
-- [Vue Router](https://router.vuejs.org/) — navegação entre telas
-- [Pinia](https://pinia.vuejs.org/) — estado global: login (`authStore`), upload (`uploadStore`) e planilhas enviadas (`planilhasStore`)
+- [Vite](https://vitejs.dev/) — build tool e servidor de desenvolvimento (telas carregadas sob demanda)
+- [Vue Router](https://router.vuejs.org/) — navegação e controle de acesso por papel
+- [Pinia](https://pinia.vuejs.org/) — estado global: sessão (`authStore`), upload (`uploadStore`), histórico (`planilhasStore`) e avisos (`uiStore`)
+- [Axios](https://axios-http.com/) — chamadas à API, com renovação automática da sessão
 - [SheetJS / xlsx](https://sheetjs.com/) — leitura de Excel e CSV no navegador
 - [Tailwind CSS](https://tailwindcss.com/) — estilização com classes utilitárias
-- HTML Semântico — foco em SEO e acessibilidade
+- [ESLint](https://eslint.org/) e [Vitest](https://vitest.dev/) — qualidade e testes
+
+**Back-end**
+
+- [Spring Boot 4](https://spring.io/projects/spring-boot) — API REST em Java
+- Spring Security + JWT — autenticação e permissões por papel
+- Spring Data JPA + PostgreSQL (Azure) — persistência
+- Spring Mail — recuperação de senha e resumo semanal
 
 > **Nota sobre o `xlsx`:** instalado a partir do CDN oficial da SheetJS
 > (`https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz`) e não do npm. A versão
@@ -68,46 +96,56 @@ Paleta baseada na marca CTI, seguindo a regra 60-30-10:
 
 ## 🚀 Como Executar
 
+### Back-end (`BackEnd/`)
+
 ```bash
-# Clonar o repositório
-git clone https://github.com/seu-usuario/DataInsights.git
+cd DataInsights/BackEnd
 
-# Entrar na pasta do front-end (o back-end Java fica em ../BackEnd)
-cd DataInsights/FrontEnd
+# Com o PostgreSQL da Azure (precisa da senha do banco)
+DB_PASSWORD=... ./mvnw spring-boot:run
 
-# Instalar as dependências
-npm install
+# Ou, para desenvolver sem tocar no banco real: H2 em memória (os dados somem ao parar)
+./mvnw spring-boot:test-run
 
-# Rodar em ambiente de desenvolvimento
-npm run dev
+# Testes de integração (também usam H2)
+./mvnw test
 ```
 
-Acesse `http://localhost:5173` no navegador.
+A API sobe em `http://localhost:8080`. Variáveis de ambiente:
+
+| Variável | Para quê | Padrão |
+|----------|----------|--------|
+| `DB_PASSWORD` | senha do PostgreSQL | — |
+| `JWT_SECRET` | chave dos tokens (**troque em produção**) | valor de exemplo |
+| `FRONTEND_URL` | endereço usado nos links enviados por e-mail | `http://localhost:5173` |
+| `CADASTRO_ABERTO` | permite o cadastro público na tela "Criar acesso" | `true` |
+| `CADASTRO_PAPEL_PADRAO` | papel das contas criadas pelo cadastro público | `LEITOR` |
+| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | servidor de e-mail; sem ele, os e-mails vão para o log | — |
+| `MAIL_FROM` | remetente dos e-mails | `nao-responda@datainsights.local` |
+
+### Front-end (`FrontEnd/`)
+
+```bash
+cd DataInsights/FrontEnd
+npm install
+npm run dev     # http://localhost:5173
+npm run lint    # ESLint
+npm test        # Vitest
+npm run build   # versão de produção em dist/
+```
+
+Copie `.env.example` para `.env` para apontar outra API (`VITE_API_BASE_URL`) ou
+mostrar o link de contato no rodapé (`VITE_CONTATO_EMAIL`).
 
 > Todos os comandos `npm` deste projeto rodam dentro de `FrontEnd/`. Não existe
 > `package.json` na raiz do repositório.
 
-## 🧭 Etapa Atual e Próximos Passos
+## 🧭 Arquitetura
 
-**Nesta etapa (somente front-end):** a planilha é lida, tratada e validada
-inteiramente no navegador. Não há dados fictícios: Dashboard, Planilhas e Dataset
-são montados a partir das planilhas enviadas, que o Pinia guarda no `localStorage`
-(sobrevivem ao F5, mas ficam só neste navegador). O login também persiste no
-`localStorage`; qualquer e-mail e senha preenchidos são aceitos até o backend existir.
-
-**Próxima etapa — backend e nuvem:**
-
-| Camada | Tecnologia | Situação |
-|--------|------------|----------|
-| Front-end | Vue 3 + Pinia | ✅ nesta etapa |
-| HTTP | Axios / `fetch` | ⏳ próxima etapa |
-| API | Java Spring Boot | ⏳ próxima etapa (scaffold em `BackEnd/`) |
-| Persistência | PostgreSQL | ⏳ próxima etapa |
-| Nuvem | Azure Database for PostgreSQL | ⏳ próxima etapa |
-
-O front-end **não acessará o banco diretamente**: quem grava no PostgreSQL é o
-Spring Boot. A troca fica nos stores: `authService.login` passa a chamar
-`POST /api/usuarios/login` e `planilhasStore.salvar` passa a enviar os dados para a API.
+O front-end **não acessa o banco diretamente**: valida a planilha no navegador e envia
+as linhas válidas para `POST /api/importacoes`. O Spring Boot importa os clientes,
+guarda o histórico da planilha, gera os insights automáticos e registra a telemetria.
+Dashboard, clientes e relatórios são lidos da API, com o token JWT de quem está logado.
 
 ## 👤 Autor
 

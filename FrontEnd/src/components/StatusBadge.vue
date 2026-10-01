@@ -11,6 +11,7 @@ const MAPA = {
   admin: { label: 'Administrador', cls: 'bg-navy text-white' },
   analista: { label: 'Analista', cls: 'bg-sky/15 text-ocean' },
   leitor: { label: 'Leitor', cls: 'bg-navy/10 text-navy/65' },
+  consultor: { label: 'Consultor', cls: 'bg-sky/15 text-ocean' },
 };
 
 const desconhecido = { label: '—', cls: 'bg-navy/10 text-navy/60' };

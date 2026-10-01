@@ -1,6 +1,9 @@
 <script setup>
 import { RouterLink } from 'vue-router';
 import AppLogo from './AppLogo.vue';
+import { useAuthStore } from '../stores/authStore';
+
+const auth = useAuthStore();
 </script>
 
 <template>
@@ -8,12 +11,12 @@ import AppLogo from './AppLogo.vue';
     <div class="mx-auto flex max-w-[1180px] items-center justify-between gap-6 px-8 py-4">
       <RouterLink to="/"><AppLogo /></RouterLink>
       <nav class="flex items-center gap-8">
-        <a href="#inicio" class="hidden text-[15px] font-medium text-navy/70 hover:text-ocean sm:block">Início</a>
-        <a href="#sobre" class="hidden text-[15px] font-medium text-navy/70 hover:text-ocean sm:block">Sobre</a>
+        <RouterLink to="/#inicio" class="hidden text-[15px] font-medium text-navy/70 hover:text-ocean sm:block">Início</RouterLink>
+        <RouterLink to="/#sobre" class="hidden text-[15px] font-medium text-navy/70 hover:text-ocean sm:block">Sobre</RouterLink>
         <RouterLink
-          to="/login"
+          :to="auth.logado ? '/app' : '/login'"
           class="rounded-lg bg-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ocean">
-          Entrar
+          {{ auth.logado ? 'Abrir painel' : 'Entrar' }}
         </RouterLink>
       </nav>
     </div>

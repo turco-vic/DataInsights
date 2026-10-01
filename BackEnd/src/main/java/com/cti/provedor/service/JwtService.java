@@ -25,15 +25,20 @@ public class JwtService {
     @Value("${app.jwt.expiration-ms}")
     private long expirationMs;
 
-    public String gerar(Long id, String nome, String email, String tipo) {
+    @Value("${app.jwt.expiration-longa-ms}")
+    private long expirationLongaMs;
+
+    /** manterConectado = true gera um token de longa duração ("Manter conectado"). */
+    public String gerar(Long id, String nome, String email, String tipo, boolean manterConectado) {
         Date agora = new Date();
-        Date expiracao = new Date(agora.getTime() + expirationMs);
+        Date expiracao = new Date(agora.getTime() + (manterConectado ? expirationLongaMs : expirationMs));
 
         return Jwts.builder()
                 .subject(email)
                 .claim("id", id)
                 .claim("nome", nome)
                 .claim("tipo", tipo)
+                .claim("manter", manterConectado)
                 .issuedAt(agora)
                 .expiration(expiracao)
                 .signWith(chave())

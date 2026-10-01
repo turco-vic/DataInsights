@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cti.provedor.dto.ResumoDTOs;
 import com.cti.provedor.dto.ServicoDTO;
 import com.cti.provedor.model.Servico;
 import com.cti.provedor.service.ServicoService;
@@ -36,8 +37,8 @@ public class ServicoController {
     }
 
     @GetMapping
-    public List<Servico> listar() {
-        return service.listar();
+    public List<ResumoDTOs.Servico> listar() {
+        return service.listarResumo();
     }
 
     @GetMapping("/{id}")

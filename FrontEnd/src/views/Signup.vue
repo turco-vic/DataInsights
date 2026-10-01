@@ -32,7 +32,13 @@ async function criarConta() {
   mensagem.value = '';
   enviando.value = true;
   try {
-    if (await auth.cadastrar(nome.value.trim(), email.value.trim(), senha.value)) router.push('/app');
+    const ok = await auth.cadastrar({
+      nome: nome.value.trim(),
+      email: email.value.trim(),
+      senha: senha.value,
+      empresa: empresa.value.trim(),
+    });
+    if (ok) router.push('/app');
   } catch (error) {
     mensagem.value = mensagemErro(error, 'Não foi possível criar a conta.');
   } finally {
@@ -50,7 +56,7 @@ async function criarConta() {
       <div class="rounded-2xl border border-navy/10 bg-white px-8 pb-8 pt-9 shadow-[0_40px_80px_-60px_rgba(20,35,63,0.5)] sm:px-10">
         <AppLogo size="text-[22px]" class="mb-6 block" />
         <h1 class="text-[28px] font-bold tracking-tight text-navy">Criar acesso</h1>
-        <p class="mt-2 text-[15px] leading-relaxed text-navy/60">Leva menos de um minuto. Você poderá enviar a primeira planilha em seguida.</p>
+        <p class="mt-2 text-[15px] leading-relaxed text-navy/60">Leva menos de um minuto. Novas contas começam com acesso de leitura; um administrador pode liberar o envio de planilhas.</p>
 
         <form class="mt-7 flex flex-col gap-4" @submit.prevent="criarConta">
           <div class="grid gap-4 sm:grid-cols-2">
@@ -76,7 +82,7 @@ async function criarConta() {
           </label>
           <label class="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-navy/70">
             <input v-model="aceito" type="checkbox" required class="mt-0.5 h-4 w-4 accent-ocean" />
-            Concordo com os <a href="#termos" class="font-semibold text-ocean">termos de uso</a> e a <a href="#privacidade" class="font-semibold text-ocean">política de privacidade</a>.
+            Concordo com os <RouterLink to="/termos" target="_blank" class="font-semibold text-ocean">termos de uso</RouterLink> e a <RouterLink to="/privacidade" target="_blank" class="font-semibold text-ocean">política de privacidade</RouterLink>.
           </label>
           <button type="submit" :disabled="enviando" class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy disabled:opacity-60">
             {{ enviando ? 'Criando…' : 'Criar conta' }}

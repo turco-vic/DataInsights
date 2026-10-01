@@ -1,10 +1,10 @@
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { RouterLink, useRouter, useRoute } from 'vue-router';
 import AppLogo from '../components/AppLogo.vue';
 import Icon from '../components/Icon.vue';
 import { useAuthStore } from '../stores/authStore';
-import { mensagemErro } from '../services/api';
+import api, { mensagemErro } from '../services/api';
 
 const router = useRouter();
 const route = useRoute();
@@ -13,15 +13,28 @@ const auth = useAuthStore();
 const email = ref('');
 const senha = ref('');
 const manterConectado = ref(true);
+const comoConsultor = ref(false);
 const mostrarSenha = ref(false);
 const entrando = ref(false);
 const mensagem = ref('');
+const estatisticas = ref(null);
+
+onMounted(async () => {
+  try {
+    estatisticas.value = (await api.get('/api/publico/estatisticas')).data;
+  } catch {
+    estatisticas.value = null;
+  }
+});
 
 async function entrar() {
   mensagem.value = '';
   entrando.value = true;
   try {
-    const ok = await auth.login(email.value.trim(), senha.value);
+    const ok = await auth.login(email.value.trim(), senha.value, {
+      manterConectado: manterConectado.value,
+      consultor: comoConsultor.value,
+    });
     if (ok) router.push(route.query.redirect || '/app');
     else mensagem.value = 'Preencha e-mail e senha.';
   } catch (error) {
@@ -51,14 +64,14 @@ async function entrar() {
         <p class="mt-4 text-[17px] leading-relaxed text-white/65">
           Entre para acompanhar indicadores, comparar períodos e enviar novos arquivos.
         </p>
-        <div class="mt-10 flex flex-wrap gap-10">
+        <div v-if="estatisticas" class="mt-10 flex flex-wrap gap-10">
           <div>
-            <div class="text-[28px] font-bold tracking-tight text-white">37</div>
+            <div class="text-[28px] font-bold tracking-tight text-white">{{ estatisticas.planilhasProcessadas.toLocaleString('pt-BR') }}</div>
             <div class="mt-1 text-[13px] font-medium text-white/55">planilhas processadas</div>
           </div>
           <div>
-            <div class="text-[28px] font-bold tracking-tight text-sky">12s</div>
-            <div class="mt-1 text-[13px] font-medium text-white/55">tempo médio de análise</div>
+            <div class="text-[28px] font-bold tracking-tight text-sky">{{ estatisticas.clientesNaBase.toLocaleString('pt-BR') }}</div>
+            <div class="mt-1 text-[13px] font-medium text-white/55">clientes na base</div>
           </div>
         </div>
       </div>
@@ -75,7 +88,18 @@ async function entrar() {
         <h1 class="text-3xl font-bold tracking-tight text-navy">Entrar na plataforma</h1>
         <p class="mt-2 text-[15px] leading-relaxed text-navy/60">Use seu e-mail corporativo.</p>
 
-        <form class="mt-8 flex flex-col gap-5" @submit.prevent="entrar">
+        <div role="radiogroup" aria-label="Tipo de acesso" class="mt-6 inline-flex rounded-lg border border-navy/15 bg-white p-1 text-[13px] font-semibold">
+          <button
+            type="button" role="radio" :aria-checked="!comoConsultor" class="rounded-md px-4 py-1.5 transition"
+            :class="!comoConsultor ? 'bg-navy text-white' : 'text-navy/60 hover:text-navy'" @click="comoConsultor = false"
+          >Equipe</button>
+          <button
+            type="button" role="radio" :aria-checked="comoConsultor" class="rounded-md px-4 py-1.5 transition"
+            :class="comoConsultor ? 'bg-navy text-white' : 'text-navy/60 hover:text-navy'" @click="comoConsultor = true"
+          >Consultor</button>
+        </div>
+
+        <form class="mt-6 flex flex-col gap-5" @submit.prevent="entrar">
           <label class="flex flex-col gap-2">
             <span class="text-[13px] font-semibold text-navy">E-mail corporativo</span>
             <input v-model="email" type="email" required placeholder="nome@empresa.com"
@@ -97,7 +121,8 @@ async function entrar() {
             <label class="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-navy/70">
               <input v-model="manterConectado" type="checkbox" class="h-4 w-4 accent-ocean" /> Manter conectado
             </label>
-            <RouterLink to="/recuperar-senha" class="text-sm font-semibold text-ocean hover:text-navy">Esqueci minha senha</RouterLink>
+            <RouterLink v-if="!comoConsultor" to="/recuperar-senha" class="text-sm font-semibold text-ocean hover:text-navy">Esqueci minha senha</RouterLink>
+            <span v-else class="text-[13px] text-navy/55">Esqueceu? Peça uma nova senha ao analista.</span>
           </div>
 
           <button type="submit" :disabled="entrando"

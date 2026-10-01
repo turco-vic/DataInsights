@@ -17,11 +17,11 @@ public class ConsultorDTO {
     @Size(max = 50)
     private String matricula;
 
-    @NotBlank
+    /** Opcional; obrigatório só para o consultor entrar na plataforma. */
     @Email
     private String email;
 
-    /** Obrigatória no cadastro; na atualização, se vier vazia a senha atual é mantida. */
+    /** Opcional. Na atualização, se vier vazia a senha atual é mantida (desde que haja e-mail). */
     @Size(min = 6)
     private String senha;
 }

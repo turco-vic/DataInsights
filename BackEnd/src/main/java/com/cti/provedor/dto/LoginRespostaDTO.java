@@ -1,4 +1,6 @@
 package com.cti.provedor.dto;
 
-public record LoginRespostaDTO(String token, Long id, String nome, String email, String tipo) {
+/** papel: ADMIN, ANALISTA, LEITOR ou CONSULTOR. */
+public record LoginRespostaDTO(String token, Long id, String nome, String email, String tipo, String papel,
+        boolean manterConectado) {
 }

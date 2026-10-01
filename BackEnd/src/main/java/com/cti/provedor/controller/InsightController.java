@@ -1,6 +1,7 @@
 package com.cti.provedor.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,6 +40,12 @@ public class InsightController {
     @GetMapping
     public List<Insight> listar(@RequestParam(required = false) Long clienteId) {
         return service.listar(clienteId);
+    }
+
+    /** Roda as regras de insights automáticos em toda a carteira. */
+    @PostMapping("/gerar")
+    public Map<String, Integer> gerar() {
+        return Map.of("criados", service.gerarAutomaticos());
     }
 
     @GetMapping("/{id}")

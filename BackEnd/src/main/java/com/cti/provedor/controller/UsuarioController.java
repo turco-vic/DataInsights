@@ -3,6 +3,7 @@ package com.cti.provedor.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cti.provedor.config.UsuarioLogado;
 import com.cti.provedor.dto.UsuarioDTO;
 import com.cti.provedor.model.Usuario;
 import com.cti.provedor.service.UsuarioService;
@@ -52,7 +54,7 @@ public class UsuarioController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void remover(@PathVariable Long id) {
-        service.remover(id);
+    public void remover(@PathVariable Long id, @AuthenticationPrincipal UsuarioLogado logado) {
+        service.remover(id, logado);
     }
 }

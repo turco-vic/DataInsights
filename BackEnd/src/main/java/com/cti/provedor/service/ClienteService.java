@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,22 +38,46 @@ public class ClienteService {
     private final ContratoRepository contratoRepository;
     private final InsightRepository insightRepository;
     private final TelemetriaRepository telemetriaRepository;
+    private final EventoService eventos;
     private final Validator validator;
 
     public ClienteService(ClienteRepository clienteRepository, ConsultorRepository consultorRepository,
             ServicoRepository servicoRepository, ContratoRepository contratoRepository,
-            InsightRepository insightRepository, TelemetriaRepository telemetriaRepository, Validator validator) {
+            InsightRepository insightRepository, TelemetriaRepository telemetriaRepository, EventoService eventos,
+            Validator validator) {
         this.clienteRepository = clienteRepository;
         this.consultorRepository = consultorRepository;
         this.servicoRepository = servicoRepository;
         this.contratoRepository = contratoRepository;
         this.insightRepository = insightRepository;
         this.telemetriaRepository = telemetriaRepository;
+        this.eventos = eventos;
         this.validator = validator;
     }
 
-    public List<Cliente> listar() {
-        return clienteRepository.findAll();
+    /** Filtros opcionais: busca (nome, código ou e-mail), segmento, nível, UF e consultor. */
+    public List<Cliente> listar(String busca, String segmento, String nivel, String uf, Long consultorId) {
+        Specification<Cliente> filtro = (raiz, consulta, cb) -> cb.conjunction();
+        if (busca != null && !busca.isBlank()) {
+            String termo = "%" + busca.trim().toLowerCase() + "%";
+            filtro = filtro.and((raiz, consulta, cb) -> cb.or(
+                    cb.like(cb.lower(raiz.get("nome")), termo),
+                    cb.like(cb.lower(raiz.get("codigo")), termo),
+                    cb.like(cb.lower(raiz.get("email")), termo)));
+        }
+        if (segmento != null && !segmento.isBlank()) {
+            filtro = filtro.and((raiz, consulta, cb) -> cb.equal(raiz.get("segmento"), segmento));
+        }
+        if (nivel != null && !nivel.isBlank()) {
+            filtro = filtro.and((raiz, consulta, cb) -> cb.equal(raiz.get("nivel"), nivel));
+        }
+        if (uf != null && !uf.isBlank()) {
+            filtro = filtro.and((raiz, consulta, cb) -> cb.equal(raiz.get("uf"), uf));
+        }
+        if (consultorId != null) {
+            filtro = filtro.and((raiz, consulta, cb) -> cb.equal(raiz.get("consultor").get("id"), consultorId));
+        }
+        return clienteRepository.findAll(filtro, Sort.by("nome"));
     }
 
     public Cliente buscarPorId(Long id) {
@@ -82,6 +108,7 @@ public class ClienteService {
         telemetriaRepository.deleteByClienteId(id);
         contratoRepository.deleteByClienteId(id);
         clienteRepository.delete(cliente);
+        eventos.registrar(EventoService.CLIENTE_EXCLUIDO, "Cliente excluído: " + cliente.getCodigo() + " · " + cliente.getNome());
     }
 
     private void preencher(Cliente cliente, ClienteDTO dto) {

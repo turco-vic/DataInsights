@@ -2,11 +2,12 @@
 import { RouterLink } from 'vue-router';
 import AppLogo from './AppLogo.vue';
 
+const contato = import.meta.env.VITE_CONTATO_EMAIL;
+
 const links = [
-  { t: 'Sobre', href: '#sobre' },
-  { t: 'Privacidade', href: '#privacidade' },
-  { t: 'Termos de uso', href: '#termos' },
-  { t: 'Contato', href: '#contato' },
+  { t: 'Sobre', to: '/#sobre' },
+  { t: 'Privacidade', to: '/privacidade' },
+  { t: 'Termos de uso', to: '/termos' },
 ];
 </script>
 
@@ -17,9 +18,10 @@ const links = [
         <RouterLink to="/"><AppLogo size="text-lg" /></RouterLink>
         <span class="text-sm text-navy/55">© 2026 DataInsights · Todos os direitos reservados.</span>
       </div>
-      <nav class="flex flex-wrap items-center gap-6">
-        <a v-for="l in links" :key="l.href" :href="l.href"
-          class="text-sm font-medium text-navy/65 hover:text-ocean">{{ l.t }}</a>
+      <nav class="flex flex-wrap items-center gap-6" aria-label="Rodapé">
+        <RouterLink v-for="l in links" :key="l.to" :to="l.to"
+          class="text-sm font-medium text-navy/65 hover:text-ocean">{{ l.t }}</RouterLink>
+        <a v-if="contato" :href="`mailto:${contato}`" class="text-sm font-medium text-navy/65 hover:text-ocean">Contato</a>
       </nav>
     </div>
   </footer>

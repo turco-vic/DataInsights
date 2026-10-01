@@ -33,6 +33,11 @@ public class GlobalExceptionHandler {
         return resposta(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 
+    @ExceptionHandler(ProibidoException.class)
+    public ResponseEntity<ErroDTO> proibido(ProibidoException e) {
+        return resposta(HttpStatus.FORBIDDEN, e.getMessage(), null);
+    }
+
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ErroDTO> auth(AuthException e) {
         return resposta(HttpStatus.UNAUTHORIZED, e.getMessage(), null);

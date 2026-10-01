@@ -1,12 +1,15 @@
 package com.cti.provedor.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 
 import com.cti.provedor.model.Cliente;
 
-public interface ClienteRepository extends JpaRepository<Cliente, Long> {
+public interface ClienteRepository extends JpaRepository<Cliente, Long>, JpaSpecificationExecutor<Cliente> {
 
     Optional<Cliente> findByCodigo(String codigo);
 
@@ -21,4 +24,8 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 
     long countByConsultorId(Long consultorId);
+
+    /** Pares [consultorId, quantidade de clientes]. */
+    @Query("select c.consultor.id, count(c) from Cliente c where c.consultor is not null group by c.consultor.id")
+    List<Object[]> contarPorConsultor();
 }

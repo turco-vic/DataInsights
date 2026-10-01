@@ -2,12 +2,25 @@
 import { ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import Icon from '../components/Icon.vue';
+import { mensagemErro } from '../services/api';
+import { authService } from '../services/auth';
 
 const email = ref('');
 const enviado = ref(false);
+const enviando = ref(false);
+const mensagem = ref('');
 
-function enviar() {
-  enviado.value = true;
+async function enviar() {
+  mensagem.value = '';
+  enviando.value = true;
+  try {
+    await authService.esqueciSenha(email.value.trim());
+    enviado.value = true;
+  } catch (error) {
+    mensagem.value = mensagemErro(error, 'Não foi possível enviar o link agora.');
+  } finally {
+    enviando.value = false;
+  }
 }
 </script>
 
@@ -31,7 +44,10 @@ function enviar() {
               <input v-model="email" type="email" required placeholder="nome@empresa.com"
                 class="w-full rounded-lg border border-navy/15 bg-mist p-3 text-[15px] text-navy outline-none transition focus:border-sky focus:bg-white focus:ring-4 focus:ring-sky/10" />
             </label>
-            <button type="submit" class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy">Enviar link de recuperação</button>
+            <button type="submit" :disabled="enviando" class="w-full rounded-lg bg-ocean px-6 py-3.5 text-base font-semibold text-white transition hover:bg-navy disabled:opacity-60">
+              {{ enviando ? 'Enviando…' : 'Enviar link de recuperação' }}
+            </button>
+            <p v-if="mensagem" class="text-sm font-medium text-red-700">{{ mensagem }}</p>
           </form>
         </template>
 

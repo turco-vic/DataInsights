@@ -10,5 +10,9 @@ public interface TelemetriaRepository extends JpaRepository<Telemetria, Long> {
 
     List<Telemetria> findByClienteIdOrderByDataHoraDesc(Long clienteId);
 
+    List<Telemetria> findTop500ByOrderByDataHoraDesc();
+
+    List<Telemetria> findTop500ByEventoOrderByDataHoraDesc(String evento);
+
     void deleteByClienteId(Long clienteId);
 }

@@ -1,34 +1,50 @@
 import { defineStore } from 'pinia';
+import api, { mensagemErro } from '../services/api';
 import { TIPOS_ERRO } from './uploadStore';
 
-
-const STORAGE_KEY = 'di_planilhas';
-const ATIVA_KEY = 'di_planilha_ativa';
-
-const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const ATIVA_KEY = 'di_importacao_ativa';
 
 const OBRIGATORIOS = [
   'codigo_cliente', 'nome_cliente', 'email', 'consultor', 'segmento',
   'nivel_cliente', 'faturamento_anual', 'servicos_contratados', 'data_contratacao',
 ];
 
-function carregar() {
-  try {
-    const lista = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    lista.forEach((p) => {
-      p.clientes.forEach((c) => {
-        c.data_contratacao = c.data_contratacao ? new Date(c.data_contratacao) : null;
-      });
-      p.erros = p.erros.map((e) =>
-        typeof e === 'string'
-          ? { linha: null, campo: '—', tipo: '—', descricao: e }
-          : e,
-      );
-    });
-    return lista;
-  } catch {
-    return [];
-  }
+/** "2025-05-01" → Date local (sem deslocar o dia por causa do fuso). */
+function dataLocal(iso) {
+  if (!iso) return null;
+  const [ano, mes, dia] = String(iso).slice(0, 10).split('-').map(Number);
+  return new Date(ano, mes - 1, dia);
+}
+
+/** Converte o detalhe devolvido por /api/importacoes/{id} no formato usado pelo relatório do dataset. */
+export function paraPlanilha(detalhe) {
+  const r = detalhe.resumo;
+  return {
+    id: String(r.id),
+    nome: r.nomeArquivo,
+    autor: r.autorNome || '—',
+    enviadaEm: r.enviadaEm,
+    totalLinhas: r.totalLinhas,
+    linhasComErro: r.linhasComErro,
+    criados: r.criados,
+    atualizados: r.atualizados,
+    status: r.status,
+    erros: detalhe.erros || [],
+    rejeitados: detalhe.rejeitados || [],
+    clientes: (detalhe.clientes || []).map((c) => ({
+      codigo_cliente: c.codigoCliente,
+      nome_cliente: c.nomeCliente,
+      email: c.email,
+      consultor: c.consultor,
+      segmento: c.segmento,
+      nivel_cliente: c.nivelCliente,
+      faturamento_anual: c.faturamentoAnual == null ? null : Number(c.faturamentoAnual),
+      servicos_contratados: c.servicosContratados || [],
+      data_contratacao: dataLocal(c.dataContratacao),
+      cidade: c.cidade || '',
+      uf: c.uf || '',
+    })),
+  };
 }
 
 function contar(itens) {
@@ -56,26 +72,29 @@ function exemplo(v) {
   return String(v);
 }
 
+/** Histórico de planilhas enviadas, lido da API. */
 export const usePlanilhasStore = defineStore('planilhas', {
   state: () => ({
-    planilhas: carregar(),
+    lista: [],
+    carregada: false,
+    carregando: false,
+    erro: '',
     ativaId: localStorage.getItem(ATIVA_KEY),
+    detalhe: null,
+    carregandoDetalhe: false,
+    erroDetalhe: '',
   }),
 
   getters: {
-    temPlanilhas: (state) => state.planilhas.length > 0,
-    ativa: (state) => state.planilhas.find((p) => p.id === state.ativaId) || state.planilhas[0] || null,
+    temPlanilhas: (state) => state.lista.length > 0,
+    ativaResumo: (state) => state.lista.find((p) => String(p.id) === state.ativaId) || state.lista[0] || null,
+    ativa() {
+      return this.detalhe && this.ativaResumo && this.detalhe.id === String(this.ativaResumo.id) ? this.detalhe : null;
+    },
     clientes() {
       return this.ativa?.clientes || [];
     },
 
-    faturamentoTotal() {
-      return this.clientes.reduce((t, c) => t + (c.faturamento_anual || 0), 0);
-    },
-    faturamentoMedio() {
-      const comValor = this.clientes.filter((c) => typeof c.faturamento_anual === 'number');
-      return comValor.length ? this.faturamentoTotal / comValor.length : 0;
-    },
     porNivel() {
       return ['A', 'B', 'C'].map((n) => [n, this.clientes.filter((c) => c.nivel_cliente === n).length]);
     },
@@ -96,31 +115,6 @@ export const usePlanilhasStore = defineStore('planilhas', {
         soma[s] = (soma[s] || 0) + (c.faturamento_anual || 0);
       });
       return Object.entries(soma).sort((a, b) => b[1] - a[1]);
-    },
-
-    contratacoesPorMes() {
-      const datas = this.clientes.map((c) => c.data_contratacao).filter(Boolean);
-      if (!datas.length) return [];
-
-      const chave = (d) => d.getFullYear() * 12 + d.getMonth();
-      const contagem = {};
-      datas.forEach((d) => { contagem[chave(d)] = (contagem[chave(d)] || 0) + 1; });
-
-      const inicio = Math.min(...datas.map(chave));
-      const fim = Math.max(...datas.map(chave));
-      const meses = [];
-      for (let k = inicio; k <= fim; k++) {
-        const ano = String(Math.floor(k / 12)).slice(2);
-        meses.push({ rotulo: `${MESES[k % 12]}/${ano}`, quantidade: contagem[k] || 0 });
-      }
-      return meses;
-    },
-
-    maioresClientes() {
-      return [...this.clientes]
-        .filter((c) => typeof c.faturamento_anual === 'number')
-        .sort((a, b) => b.faturamento_anual - a.faturamento_anual)
-        .slice(0, 8);
     },
 
     qualidade() {
@@ -156,6 +150,7 @@ export const usePlanilhasStore = defineStore('planilhas', {
       });
     },
 
+    /** Observações sobre a planilha (não são os insights por cliente do back-end). */
     insights() {
       if (!this.clientes.length) return [];
       const total = this.clientes.length;
@@ -166,7 +161,7 @@ export const usePlanilhasStore = defineStore('planilhas', {
       lista.push(`${segmento} é o segmento com mais clientes: ${qtdSeg} de ${total} (${pct(qtdSeg)}).`);
 
       const [segFat] = this.faturamentoPorSegmento;
-      if (segFat) lista.push(`${segFat[0]} concentra o maior faturamento anual somado da carteira.`);
+      if (segFat) lista.push(`${segFat[0]} concentra o maior faturamento anual somado da planilha.`);
 
       const [consultor, qtdCons] = this.porConsultor[0];
       lista.push(`${consultor} atende a maior carteira, com ${qtdCons} clientes.`);
@@ -177,54 +172,63 @@ export const usePlanilhasStore = defineStore('planilhas', {
       }
 
       const nivelA = this.porNivel[0][1];
-      lista.push(`${pct(nivelA)} da carteira está no nível A.`);
+      lista.push(`${pct(nivelA)} da planilha está no nível A.`);
       return lista;
     },
   },
 
   actions: {
-    salvar({ nome, autor, linhasValidas, totalLinhas, erros }) {
-      const clientes = linhasValidas.map(({ numero_linha, ...cliente }) => cliente);
-
-      const planilha = {
-        id: `${Date.now()}`,
-        nome,
-        autor,
-        enviadaEm: new Date().toISOString(),
-        totalLinhas,
-        linhasComErro: totalLinhas - clientes.length,
-        erros,
-        status: erros.length ? 'erro' : 'processado',
-        clientes,
-      };
-
-      const anteriores = this.planilhas.filter((p) => p.nome !== nome);
-      this.planilhas = [planilha, ...anteriores];
-      this.ativaId = planilha.id;
-
+    async carregarLista() {
+      this.carregando = true;
+      this.erro = '';
       try {
-        this.persistir();
-        return true;
-      } catch {
-        return false;
+        const { data } = await api.get('/api/importacoes');
+        this.lista = data;
+        this.carregada = true;
+      } catch (error) {
+        this.erro = mensagemErro(error, 'Não foi possível carregar as planilhas.');
+      } finally {
+        this.carregando = false;
       }
     },
 
-    selecionar(id) {
-      this.ativaId = id;
-      localStorage.setItem(ATIVA_KEY, id);
+    /** Carrega a lista (se preciso) e o detalhe da planilha ativa. */
+    async garantirAtiva() {
+      if (!this.carregada) await this.carregarLista();
+      const resumo = this.ativaResumo;
+      if (!resumo || this.ativa) return;
+      this.carregandoDetalhe = true;
+      this.erroDetalhe = '';
+      try {
+        const { data } = await api.get(`/api/importacoes/${resumo.id}`);
+        this.detalhe = paraPlanilha(data);
+      } catch (error) {
+        this.erroDetalhe = mensagemErro(error, 'Não foi possível abrir a planilha.');
+      } finally {
+        this.carregandoDetalhe = false;
+      }
     },
 
-    remover(id) {
-      this.planilhas = this.planilhas.filter((p) => p.id !== id);
-      if (this.ativaId === id) this.ativaId = this.planilhas[0]?.id || null;
-      this.persistir();
+    async selecionar(id) {
+      this.ativaId = String(id);
+      localStorage.setItem(ATIVA_KEY, this.ativaId);
+      await this.garantirAtiva();
     },
 
-    persistir() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.planilhas));
-      if (this.ativaId) localStorage.setItem(ATIVA_KEY, this.ativaId);
-      else localStorage.removeItem(ATIVA_KEY);
+    /** Apaga do histórico. Os clientes importados continuam no banco. */
+    async remover(id) {
+      await api.delete(`/api/importacoes/${id}`);
+      if (this.detalhe?.id === String(id)) this.detalhe = null;
+      if (this.ativaId === String(id)) {
+        this.ativaId = null;
+        localStorage.removeItem(ATIVA_KEY);
+      }
+      await this.carregarLista();
+    },
+
+    limpar() {
+      this.$reset();
+      this.ativaId = localStorage.getItem(ATIVA_KEY);
     },
   },
 });

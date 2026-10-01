@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
-import * as XLSX from 'xlsx';
+// A biblioteca de planilhas é grande: só é baixada quando alguém processa um arquivo.
+let XLSX = null;
 import api, { mensagemErro } from '../services/api';
+import { NIVEIS, SEGMENTOS, UFS } from '../utils/dominio';
 
 export const TIPOS_ERRO = {
   COLUNA: 'Coluna ausente',
@@ -32,14 +34,10 @@ const MAPA_SEGMENTOS = {
   'EDUCAÇÃO': 'Educação',
   TECNOLOGIA: 'Tecnologia',
 };
-const SEGMENTOS_VALIDOS = [...new Set(Object.values(MAPA_SEGMENTOS))];
-
-const NIVEIS_VALIDOS = ['A', 'B', 'C'];
+const SEGMENTOS_VALIDOS = SEGMENTOS;
+const NIVEIS_VALIDOS = NIVEIS;
 const EXTENSOES_ACEITAS = ['.xlsx', '.xls', '.csv'];
-const UFS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
-  'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
-];
+export const TAMANHO_MAXIMO_MB = 50;
 
 const PADRAO_CODIGO = /^CTI\d{3,}$/;
 const PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -149,6 +147,8 @@ export const useUploadStore = defineStore('upload', {
     importando: false,
     resultadoImportacao: null,
     erroImportacao: '',
+    // Preferência "Tratar dados automaticamente": desligada, nada é corrigido e divergências viram erros.
+    tratarAutomaticamente: true,
   }),
 
   getters: {
@@ -198,18 +198,30 @@ export const useUploadStore = defineStore('upload', {
       }
 
       const nome = this.arquivo.name.toLowerCase();
-      const valido = EXTENSOES_ACEITAS.some((ext) => nome.endsWith(ext));
-      if (!valido) this.erroArquivo = `Formato inválido. Use ${EXTENSOES_ACEITAS.join(', ')}.`;
-      return valido;
+      if (!EXTENSOES_ACEITAS.some((ext) => nome.endsWith(ext))) {
+        this.erroArquivo = `Formato inválido. Use ${EXTENSOES_ACEITAS.join(', ')}.`;
+        return false;
+      }
+      if (this.arquivo.size > TAMANHO_MAXIMO_MB * 1024 * 1024) {
+        const mb = (this.arquivo.size / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+        this.erroArquivo = `O arquivo tem ${mb} MB. O limite é ${TAMANHO_MAXIMO_MB} MB.`;
+        return false;
+      }
+      return true;
     },
 
-    async processarPlanilha() {
+    async processarPlanilha({ tratar = true } = {}) {
+      this.tratarAutomaticamente = tratar;
       if (!this.validarArquivo()) return;
 
       this.carregando = true;
       try {
+        XLSX ??= await import('xlsx');
         const buffer = await this.arquivo.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+        // Em CSV a biblioteca leria "05/07/2024" no padrão americano (7 de maio). Lendo como texto,
+        // datas e números passam pela conversão brasileira (DD/MM/AAAA e vírgula decimal).
+        const csv = this.arquivo.name.toLowerCase().endsWith('.csv');
+        const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: csv });
         const planilha = workbook.Sheets[workbook.SheetNames[0]];
         const linhas = XLSX.utils.sheet_to_json(planilha, { defval: '' });
 
@@ -223,6 +235,7 @@ export const useUploadStore = defineStore('upload', {
         this.dadosTratados = this.dadosOriginais.map((linha) => this.tratarLinha(linha));
         this.validarLinhas();
         this.dataValidacao = new Date();
+        this.registrarValidacao();
       } catch (error) {
         console.error(error);
         this.erroArquivo = 'Não foi possível ler o arquivo. Ele pode estar corrompido.';
@@ -253,6 +266,7 @@ export const useUploadStore = defineStore('upload', {
 
       const texto = (campo, padronizar = (v) => v) => {
         const original = typeof linha[campo] === 'string' ? linha[campo] : String(linha[campo] ?? '');
+        if (!this.tratarAutomaticamente) return original;
         const limpo = original.trim().replace(/\s+/g, ' ');
         if (limpo !== original) {
           this.registrarAviso(numero, campo, TIPOS_AVISO.ESPACO, `Espaços extras removidos: "${original}" → "${limpo}".`);
@@ -352,6 +366,14 @@ export const useUploadStore = defineStore('upload', {
       });
     },
 
+    /** Registra a validação na telemetria. Falhas aqui não atrapalham o upload. */
+    registrarValidacao() {
+      api.post('/api/telemetrias', {
+        evento: 'planilha_validada',
+        mensagem: `${this.nomeArquivo}: ${this.totalRegistros} linha(s), ${this.totalErros} erro(s), ${this.totalAvisos} correção(ões)`,
+      }).catch(() => {});
+    },
+
     async importarValidos() {
       this.erroImportacao = '';
       this.resultadoImportacao = null;
@@ -361,7 +383,7 @@ export const useUploadStore = defineStore('upload', {
         return false;
       }
 
-      const payload = this.linhasValidas.map((c) => ({
+      const clientes = this.linhasValidas.map((c) => ({
         codigoCliente: c.codigo_cliente,
         nomeCliente: c.nome_cliente,
         email: c.email,
@@ -377,7 +399,13 @@ export const useUploadStore = defineStore('upload', {
 
       this.importando = true;
       try {
-        const resposta = await api.post('/api/clientes/importar', payload);
+        // O back-end importa os clientes e guarda o histórico (Planilhas enviadas / Relatório do dataset).
+        const resposta = await api.post('/api/importacoes', {
+          nomeArquivo: this.nomeArquivo,
+          totalLinhas: this.totalRegistros,
+          erros: this.erros,
+          clientes,
+        });
         this.resultadoImportacao = resposta.data;
         return true;
       } catch (error) {

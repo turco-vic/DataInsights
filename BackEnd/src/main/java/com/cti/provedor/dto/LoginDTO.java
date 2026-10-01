@@ -15,4 +15,7 @@ public class LoginDTO {
 
     @NotBlank
     private String senha;
+
+    /** true gera uma sessão longa ("Manter conectado"). */
+    private boolean manterConectado;
 }

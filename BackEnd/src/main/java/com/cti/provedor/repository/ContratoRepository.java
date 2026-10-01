@@ -3,6 +3,7 @@ package com.cti.provedor.repository;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import com.cti.provedor.model.Cliente;
 import com.cti.provedor.model.Contrato;
@@ -16,5 +17,17 @@ public interface ContratoRepository extends JpaRepository<Contrato, Long> {
 
     long countByServicoId(Long servicoId);
 
+    long countByAtivoTrue();
+
+    long countByClienteIdAndAtivoTrue(Long clienteId);
+
     void deleteByClienteId(Long clienteId);
+
+    /** Pares [servicoId, quantidade de contratos]. */
+    @Query("select c.servico.id, count(c) from Contrato c group by c.servico.id")
+    List<Object[]> contarPorServico();
+
+    /** Pares [nome do serviço, contratos ativos], do mais contratado para o menos. */
+    @Query("select s.nome, count(c) from Contrato c join c.servico s where c.ativo = true group by s.nome order by count(c) desc")
+    List<Object[]> rankingServicosAtivos();
 }

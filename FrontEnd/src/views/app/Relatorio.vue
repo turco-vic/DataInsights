@@ -6,12 +6,14 @@ import SemPlanilhas from '../../components/SemPlanilhas.vue';
 import { useUploadStore, TIPOS_ERRO, COLUNAS_MODELO } from '../../stores/uploadStore';
 import { usePlanilhasStore } from '../../stores/planilhasStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useUiStore } from '../../stores/uiStore';
 import { dataHora, porcentagem } from '../../utils/formato';
 
 const router = useRouter();
 const upload = useUploadStore();
 const planilhas = usePlanilhasStore();
 const auth = useAuthStore();
+const ui = useUiStore();
 
 const SITUACAO = {
   erro: { label: 'Erro', cls: 'bg-red-600/10 text-red-700' },
@@ -78,25 +80,23 @@ function pedirConfirmacao() {
 async function enviar() {
   modalAberto.value = false;
 
-  const salvo = planilhas.salvar({
-    nome: upload.nomeArquivo,
-    autor: auth.nomeExibicao,
-    linhasValidas: upload.linhasValidas,
-    totalLinhas: upload.totalRegistros,
-    erros: upload.erros,
-  });
-  const importado = await upload.importarValidos();
+  const nome = upload.nomeArquivo;
+  const enviados = upload.registrosValidos;
+  const descartados = upload.registrosComErro;
 
-  envio.value = {
-    nome: upload.nomeArquivo,
-    enviados: upload.registrosValidos,
-    descartados: upload.registrosComErro,
-    salvo,
-    importado,
-    resultado: upload.resultadoImportacao,
-    erroImportacao: upload.erroImportacao,
-  };
+  // Se falhar, os dados continuam na tela para tentar de novo.
+  if (!(await upload.importarValidos())) return;
+
+  const { resumo, rejeitados } = upload.resultadoImportacao;
   upload.limpar();
+  planilhas.carregarLista().then(() => planilhas.selecionar(resumo.id));
+
+  if (auth.usuario?.prefs?.gerarDashboard) {
+    ui.notificar(`${nome}: ${resumo.criados} cliente(s) novo(s), ${resumo.atualizados} atualizado(s).`);
+    router.push('/app');
+    return;
+  }
+  envio.value = { nome, enviados, descartados, resumo, rejeitados };
 }
 
 function corrigirEReenviar() {
@@ -124,26 +124,19 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
           </div>
         </div>
 
-        <template v-if="envio.importado">
-          <div class="mt-5 rounded-lg bg-emerald-50 px-4 py-3 text-[13px] text-emerald-800">
-            Back-end: {{ envio.resultado?.criados ?? 0 }} cliente(s) criado(s) e {{ envio.resultado?.atualizados ?? 0 }} atualizado(s) no banco.
-          </div>
-          <div v-if="envio.resultado?.rejeitados?.length" class="mt-3 rounded-lg border border-amber-500/30 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-            <div class="font-semibold">{{ envio.resultado.rejeitados.length }} registro(s) recusado(s) pelo back-end:</div>
-            <ul class="mt-1 space-y-0.5">
-              <li v-for="r in envio.resultado.rejeitados" :key="r.codigoCliente + r.motivo">· {{ r.codigoCliente || '—' }}: {{ r.motivo }}</li>
-            </ul>
-          </div>
-        </template>
-        <div v-else class="mt-5 rounded-lg border border-amber-500/30 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-          {{ envio.erroImportacao }} Os dados ficaram salvos apenas neste navegador.
+        <div class="mt-5 rounded-lg bg-emerald-50 px-4 py-3 text-[13px] text-emerald-800">
+          {{ envio.resumo.criados }} cliente(s) criado(s) e {{ envio.resumo.atualizados }} atualizado(s) no banco. A planilha entrou no histórico da equipe.
         </div>
-        <div v-if="!envio.salvo" class="mt-3 rounded-lg border border-amber-500/30 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-          A planilha é grande demais para guardar no navegador: fica disponível até recarregar a página.
+        <div v-if="envio.rejeitados.length" class="mt-3 rounded-lg border border-amber-500/30 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+          <div class="font-semibold">{{ envio.rejeitados.length }} registro(s) recusado(s) pelo servidor:</div>
+          <ul class="mt-1 space-y-0.5">
+            <li v-for="r in envio.rejeitados" :key="r.codigoCliente + r.motivo">· {{ r.codigoCliente || '—' }}: {{ r.motivo }}</li>
+          </ul>
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
           <RouterLink to="/app/upload" class="rounded-lg border border-navy/15 px-5 py-2.5 text-sm font-medium text-navy/65 transition hover:text-navy">Enviar outra planilha</RouterLink>
+          <RouterLink to="/app/dataset" class="rounded-lg border border-navy/15 px-5 py-2.5 text-sm font-medium text-navy/65 transition hover:text-navy">Relatório do dataset</RouterLink>
           <RouterLink to="/app" class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy">Ver dashboard</RouterLink>
         </div>
       </div>
@@ -173,6 +166,10 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
             class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy disabled:cursor-not-allowed disabled:opacity-50"
           >{{ upload.importando ? 'Enviando…' : `Enviar ${upload.registrosValidos} registro(s)` }}</button>
         </div>
+      </div>
+
+      <div v-if="upload.erroImportacao" role="alert" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-4 text-[13px] font-semibold text-red-800">
+        A importação falhou: {{ upload.erroImportacao }} Os dados continuam aqui; tente enviar de novo.
       </div>
 
       <div v-if="upload.errosEstrutura.length" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-5">

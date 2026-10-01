@@ -20,3 +20,15 @@ body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
 }
+
+@media print {
+    @page {
+        margin: 14mm;
+    }
+
+    body {
+        background-color: #fff;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}

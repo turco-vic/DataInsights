@@ -8,7 +8,11 @@ import com.cti.provedor.model.Insight;
 
 public interface InsightRepository extends JpaRepository<Insight, Long> {
 
-    List<Insight> findByClienteId(Long clienteId);
+    List<Insight> findAllByOrderByIdDesc();
+
+    List<Insight> findByClienteIdOrderByIdDesc(Long clienteId);
+
+    boolean existsByClienteIdAndTipo(Long clienteId, String tipo);
 
     void deleteByClienteId(Long clienteId);
 
