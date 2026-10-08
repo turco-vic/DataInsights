@@ -10,6 +10,7 @@ export const TIPOS_ERRO = {
   EMAIL: 'E-mail inválido',
   DUPLICADO: 'Registro duplicado',
   FORA_PADRAO: 'Dado fora do padrão',
+  SERVIDOR: 'Recusado pelo servidor',
 };
 
 export const TIPOS_AVISO = {
@@ -38,6 +39,7 @@ const SEGMENTOS_VALIDOS = SEGMENTOS;
 const NIVEIS_VALIDOS = NIVEIS;
 const EXTENSOES_ACEITAS = ['.xlsx', '.xls', '.csv'];
 export const TAMANHO_MAXIMO_MB = 50;
+const TEMPO_LIMITE_IMPORTACAO_MS = 120000;
 
 const PADRAO_CODIGO = /^CTI\d{3,}$/;
 const PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -180,8 +182,9 @@ export const useUploadStore = defineStore('upload', {
     errosPorTipo: (state) => contarPorTipo(state.erros, TIPOS_ERRO),
     avisosPorTipo: (state) => contarPorTipo(state.avisos, TIPOS_AVISO),
 
+    /** Só uma planilha 100% consistente pode ser enviada: nenhum erro, em nenhuma linha. */
     podeEnviar() {
-      return this.errosEstrutura.length === 0 && this.registrosValidos > 0;
+      return this.totalRegistros > 0 && this.totalErros === 0;
     },
   },
 
@@ -340,8 +343,8 @@ export const useUploadStore = defineStore('upload', {
         if (!vazio(original.faturamento_anual)) {
           if (cliente.faturamento_anual === null) {
             erro('faturamento_anual', TIPOS_ERRO.FORA_PADRAO, `Faturamento "${original.faturamento_anual}" não é um número.`);
-          } else if (cliente.faturamento_anual < 0) {
-            erro('faturamento_anual', TIPOS_ERRO.FORA_PADRAO, 'Faturamento anual negativo.');
+          } else if (cliente.faturamento_anual <= 0) {
+            erro('faturamento_anual', TIPOS_ERRO.FORA_PADRAO, 'Faturamento anual deve ser maior que zero.');
           }
         }
 
@@ -374,16 +377,18 @@ export const useUploadStore = defineStore('upload', {
       }).catch(() => {});
     },
 
-    async importarValidos() {
+    /** Envia a planilha inteira. Com qualquer erro (aqui ou no servidor), nada é importado. */
+    async importar() {
       this.erroImportacao = '';
       this.resultadoImportacao = null;
 
       if (!this.podeEnviar) {
-        this.erroImportacao = 'Não há registros válidos para importar.';
+        this.erroImportacao = 'A planilha tem inconsistências. Corrija todas antes de enviar.';
         return false;
       }
 
-      const clientes = this.linhasValidas.map((c) => ({
+      const clientes = this.dadosTratados.map((c) => ({
+        linha: c.numero_linha,
         codigoCliente: c.codigo_cliente,
         nomeCliente: c.nome_cliente,
         email: c.email,
@@ -400,20 +405,30 @@ export const useUploadStore = defineStore('upload', {
       this.importando = true;
       try {
         // O back-end importa os clientes e guarda o histórico (Planilhas enviadas / Relatório do dataset).
+        // Planilhas grandes com o banco na nuvem passam fácil do limite padrão de 15 s.
         const resposta = await api.post('/api/importacoes', {
           nomeArquivo: this.nomeArquivo,
           totalLinhas: this.totalRegistros,
           erros: this.erros,
           clientes,
-        });
+        }, { timeout: TEMPO_LIMITE_IMPORTACAO_MS });
         this.resultadoImportacao = resposta.data;
         return true;
       } catch (error) {
         console.error(error);
-        this.erroImportacao = mensagemErro(
-          error,
-          `O servidor recusou os dados (erro ${error.response?.status}).`,
-        );
+        if (!error.response) {
+          // Sem resposta não dá para saber se o servidor terminou: não afirmar que nada foi gravado.
+          this.erroImportacao = error.code === 'ECONNABORTED'
+            ? 'O servidor demorou demais para responder. A importação pode ter sido concluída: confira em Planilhas enviadas antes de enviar de novo.'
+            : mensagemErro(error);
+          return false;
+        }
+        // O servidor achou inconsistências que a tela não pegou (ex.: e-mail de outro cliente já cadastrado).
+        const inconsistencias = error.response.data?.inconsistencias || [];
+        inconsistencias.forEach((i) => this.registrarErro(i.linha, i.campo, TIPOS_ERRO.SERVIDOR, i.erro));
+        // Com resposta de erro, o back-end desfez tudo. A mensagem de inconsistência já avisa isso.
+        const mensagem = mensagemErro(error, `O servidor recusou os dados (erro ${error.response.status}).`);
+        this.erroImportacao = inconsistencias.length ? mensagem : `${mensagem} Nada foi gravado.`;
         return false;
       } finally {
         this.importando = false;

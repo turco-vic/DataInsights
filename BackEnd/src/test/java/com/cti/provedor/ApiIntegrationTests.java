@@ -1,13 +1,19 @@
 package com.cti.provedor;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -337,34 +343,38 @@ class ApiIntegrationTests {
     }
 
     @Test
-    void importacaoGuardaHistoricoEAlimentaODashboard() throws Exception {
+    void importacaoConsistenteGuardaHistoricoEAlimentaODashboard() throws Exception {
         String valido = novoCodigo();
-        String repetido = novoCodigo();
-        String emailRepetido = unico() + "@imp.com";
+        String outro = novoCodigo();
+        // Textos fora do padrão: o back-end padroniza antes de validar (aula de validação no Service).
         String resposta = mvc.perform(json(auth(post("/api/importacoes")), """
-                {"nomeArquivo": "carteira.xlsx", "totalLinhas": 4,
-                 "erros": [{"linha": 5, "campo": "email", "tipo": "E-mail inválido", "descricao": "x"}],
+                {"nomeArquivo": "carteira.xlsx", "totalLinhas": 2, "erros": [],
                  "clientes": [
-                   {"codigoCliente": "%s", "nomeCliente": "Importada", "email": "%s", "consultor": "Diego",
-                    "segmento": "Saúde", "nivelCliente": "A", "faturamentoAnual": 10,
-                    "servicosContratados": ["Backup"], "dataContratacao": "2025-05-01", "uf": "RJ"},
-                   {"codigoCliente": "%s", "nomeCliente": "Outra", "email": "%s", "consultor": "Diego",
-                    "segmento": "Saúde", "nivelCliente": "B", "faturamentoAnual": 20,
-                    "servicosContratados": ["Backup"], "dataContratacao": "2025-06-01"},
-                   {"codigoCliente": "%s", "nomeCliente": "Repetida", "email": "%s", "consultor": "Diego",
-                    "segmento": "Saúde", "nivelCliente": "B", "faturamentoAnual": 20,
-                    "servicosContratados": ["Backup"], "dataContratacao": "2025-06-01"}
+                   {"linha": 2, "codigoCliente": " %s ", "nomeCliente": "IMPORTADA LTDA", "email": "%s",
+                    "consultor": "  DIEGO   LIMA ", "segmento": "saude", "nivelCliente": "a", "faturamentoAnual": 10,
+                    "servicosContratados": [" Backup "], "dataContratacao": "2025-05-01", "cidade": "rio de janeiro", "uf": "rj"},
+                   {"linha": 3, "codigoCliente": "%s", "nomeCliente": "Outra, S.A.", "email": "%s", "consultor": "Diego Lima",
+                    "segmento": "IND.", "nivelCliente": "B", "faturamentoAnual": 20,
+                    "servicosContratados": ["Backup", "Cloud"], "dataContratacao": "2025-06-01", "uf": ""}
                  ]}"""
-                .formatted(valido, unico() + "@imp.com", repetido, emailRepetido, novoCodigo(), emailRepetido)))
+                .formatted(valido.toLowerCase(), unico() + "@IMP.com", outro, unico() + "@imp.com")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.resumo.criados").value(2))
-                .andExpect(jsonPath("$.resumo.rejeitados").value(1))
-                .andExpect(jsonPath("$.resumo.linhasComErro").value(1))
-                .andExpect(jsonPath("$.resumo.status").value("erro"))
+                .andExpect(jsonPath("$.resumo.rejeitados").value(0))
+                .andExpect(jsonPath("$.resumo.linhasComErro").value(0))
+                .andExpect(jsonPath("$.resumo.status").value("processado"))
                 .andExpect(jsonPath("$.resumo.autorNome").exists())
                 .andExpect(jsonPath("$.clientes", hasSize(2)))
-                .andExpect(jsonPath("$.erros", hasSize(1)))
-                .andExpect(jsonPath("$.rejeitados", hasSize(1)))
+                .andExpect(jsonPath("$.clientes[0].codigoCliente").value(valido))
+                .andExpect(jsonPath("$.clientes[0].nomeCliente").value("Importada Ltda"))
+                .andExpect(jsonPath("$.clientes[0].consultor").value("Diego Lima"))
+                .andExpect(jsonPath("$.clientes[0].segmento").value("Saúde"))
+                .andExpect(jsonPath("$.clientes[0].nivelCliente").value("A"))
+                .andExpect(jsonPath("$.clientes[0].cidade").value("Rio de Janeiro"))
+                .andExpect(jsonPath("$.clientes[0].uf").value("RJ"))
+                .andExpect(jsonPath("$.clientes[1].segmento").value("Indústria"))
+                .andExpect(jsonPath("$.erros", hasSize(0)))
+                .andExpect(jsonPath("$.rejeitados", hasSize(0)))
                 .andReturn().getResponse().getContentAsString();
         Integer id = JsonPath.read(resposta, "$.resumo.id");
 
@@ -372,6 +382,17 @@ class ApiIntegrationTests {
         mvc.perform(auth(get("/api/importacoes/" + id)))
                 .andExpect(jsonPath("$.clientes[0].codigoCliente").value(valido))
                 .andExpect(jsonPath("$.clientes[0].dataContratacao").value("2025-05-01"));
+
+        // Dataset limpo em CSV para a etapa de Ciência de Dados.
+        mvc.perform(auth(get("/api/importacoes/" + id + "/csv")))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", containsString("carteira.csv")))
+                .andExpect(content().string(startsWith("codigo_cliente,nome_cliente,email,consultor,segmento,")))
+                .andExpect(content().string(containsString(valido + ",Importada Ltda,")))
+                .andExpect(content().string(containsString(",Saúde,A,10,Backup,2025-05-01,Rio de Janeiro,RJ")))
+                .andExpect(content().string(containsString(outro + ",\"Outra, S.A.\",")))
+                .andExpect(content().string(containsString(",Indústria,B,20,Backup;Cloud,2025-06-01,,")));
 
         mvc.perform(auth(get("/api/dashboard")))
                 .andExpect(status().isOk())
@@ -410,6 +431,109 @@ class ApiIntegrationTests {
                 .formatted(novoCodigo(), unico() + "@imp.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.criados").value(1));
+    }
+
+    @Test
+    void planilhaComQualquerInconsistenciaNaoImportaNada() throws Exception {
+        String valido = novoCodigo();
+        String repetido = novoCodigo();
+        String emailRepetido = unico() + "@imp.com";
+        String lote = """
+                {"nomeArquivo": "com-erros.xlsx", "totalLinhas": 3, "erros": [],
+                 "clientes": [
+                   {"linha": 2, "codigoCliente": "%s", "nomeCliente": "Válida", "email": "%s", "consultor": "Diego",
+                    "segmento": "Saúde", "nivelCliente": "A", "faturamentoAnual": 10,
+                    "servicosContratados": ["Backup"], "dataContratacao": "2025-05-01"},
+                   {"linha": 3, "codigoCliente": "%s", "nomeCliente": "Outra", "email": "%s", "consultor": "Diego",
+                    "segmento": "Saúde", "nivelCliente": "B", "faturamentoAnual": 20,
+                    "servicosContratados": ["Backup"], "dataContratacao": "2025-06-01"},
+                   {"linha": 4, "codigoCliente": "%s", "nomeCliente": "Repetida", "email": "%s", "consultor": "Diego",
+                    "segmento": "Saúde", "nivelCliente": "B", "faturamentoAnual": 0,
+                    "servicosContratados": ["Backup"], "dataContratacao": "2025-06-01"}
+                 ]}"""
+                .formatted(valido, unico() + "@imp.com", repetido, emailRepetido, repetido, emailRepetido);
+
+        mvc.perform(json(auth(post("/api/importacoes")), lote))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem", containsString("Nada foi importado")))
+                .andExpect(jsonPath("$.inconsistencias", hasSize(3)))
+                .andExpect(jsonPath("$.inconsistencias[*].linha", hasItems(4)))
+                .andExpect(jsonPath("$.inconsistencias[*].campo",
+                        hasItems("codigo_cliente", "email", "faturamento_anual")))
+                .andExpect(jsonPath("$.inconsistencias[*].erro",
+                        hasItem("O faturamento anual deve ser maior que zero")));
+
+        // Nem a linha válida entrou, e a planilha não foi para o histórico.
+        mvc.perform(auth(get("/api/clientes?busca=" + valido))).andExpect(jsonPath("$", hasSize(0)));
+        mvc.perform(auth(get("/api/importacoes")))
+                .andExpect(jsonPath("$[*].nomeArquivo", not(hasItem("com-erros.xlsx"))));
+        mvc.perform(auth(get("/api/telemetrias?evento=importacao_recusada")))
+                .andExpect(jsonPath("$[*].mensagem", hasItem(containsString("com-erros.xlsx"))));
+
+        // Erros apontados pelo front também bloqueiam, mesmo com os clientes enviados corretos.
+        mvc.perform(json(auth(post("/api/importacoes")), """
+                {"nomeArquivo": "front.xlsx", "totalLinhas": 1,
+                 "erros": [{"linha": 2, "campo": "email", "tipo": "E-mail inválido", "descricao": "E-mail inválido"}],
+                 "clientes": [{"codigoCliente": "%s", "nomeCliente": "A", "email": "%s", "consultor": "Diego",
+                   "segmento": "Saúde", "nivelCliente": "A", "faturamentoAnual": 10,
+                   "servicosContratados": ["Backup"], "dataContratacao": "2025-05-01"}]}"""
+                .formatted(valido, unico() + "@imp.com")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.inconsistencias", hasSize(1)));
+
+        // Linhas faltando (front mandou só parte da planilha) também bloqueiam.
+        mvc.perform(json(auth(post("/api/importacoes")), """
+                {"nomeArquivo": "parcial.xlsx", "totalLinhas": 5, "erros": [],
+                 "clientes": [{"codigoCliente": "%s", "nomeCliente": "A", "email": "%s", "consultor": "Diego",
+                   "segmento": "Saúde", "nivelCliente": "A", "faturamentoAnual": 10,
+                   "servicosContratados": ["Backup"], "dataContratacao": "2025-05-01"}]}"""
+                .formatted(valido, unico() + "@imp.com")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem", containsString("Envie a planilha inteira")));
+        mvc.perform(auth(get("/api/clientes?busca=" + valido))).andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void validarPadronizaSemGravar() throws Exception {
+        String codigo = novoCodigo();
+        // Teste 1 da aula: JSON válido, com segmento "IND." para o Service padronizar.
+        mvc.perform(json(auth(post("/api/clientes/validar")), """
+                [{"codigoCliente": "%s", "nomeCliente": "Metalúrgica Horizonte", "email": "%s",
+                  "consultor": "ANA SOUZA", "segmento": "IND.", "nivelCliente": "a", "faturamentoAnual": 1850000,
+                  "servicosContratados": ["Internet Dedicada", "Firewall"], "dataContratacao": "2025-01-15",
+                  "cidade": "Campinas", "uf": "sp"}]"""
+                .formatted(codigo, unico() + "@mh.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].linha").value(2))
+                .andExpect(jsonPath("$[0].segmento").value("Indústria"))
+                .andExpect(jsonPath("$[0].consultor").value("Ana Souza"))
+                .andExpect(jsonPath("$[0].nivelCliente").value("A"))
+                .andExpect(jsonPath("$[0].uf").value("SP"));
+        mvc.perform(auth(get("/api/clientes?busca=" + codigo))).andExpect(jsonPath("$", hasSize(0)));
+
+        // Teste 2 da aula: vários erros na mesma linha voltam todos juntos.
+        mvc.perform(json(auth(post("/api/clientes/validar")), """
+                [{"codigoCliente": "CTI002", "nomeCliente": "", "consultor": "Carlos Lima", "segmento": "Comercio",
+                  "nivelCliente": "D", "faturamentoAnual": -10, "servicosContratados": [],
+                  "dataContratacao": "2025-01-30", "cidade": "Hortolândia", "uf": "SPP"}]"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.inconsistencias[*].campo", hasItems("nome_cliente", "email", "nivel_cliente",
+                        "faturamento_anual", "servicos_contratados", "uf")))
+                .andExpect(jsonPath("$.inconsistencias[*].erro", hasItem("O nome do cliente é obrigatório")));
+
+        mvc.perform(json(auth(post("/api/clientes/validar")), "[]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value("A planilha não tem nenhum cliente para validar."));
+    }
+
+    @Test
+    void errosInesperadosViramJsonSimples() throws Exception {
+        mvc.perform(auth(get("/api/rota-que-nao-existe")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.mensagem").value("Rota não encontrada"));
+        mvc.perform(auth(put("/api/importacoes")))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.mensagem").value("Método HTTP não permitido nesta rota"));
     }
 
     private Usuario criarUsuario(Papel papel) {

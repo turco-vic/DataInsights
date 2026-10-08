@@ -1,8 +1,13 @@
 package com.cti.provedor.controller;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,6 +50,17 @@ public class ImportacaoController {
     @GetMapping("/{id}")
     public ImportacaoRespostaDTOs.Detalhe buscar(@PathVariable Long id) {
         return service.buscar(id);
+    }
+
+    /** Dataset limpo da planilha em CSV, para a etapa de Ciência de Dados (pandas.read_csv, por exemplo). */
+    @GetMapping("/{id}/csv")
+    public ResponseEntity<String> exportarCsv(@PathVariable Long id) {
+        String csv = service.exportarCsv(id);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(service.nomeCsv(id), StandardCharsets.UTF_8).build().toString())
+                .body(csv);
     }
 
     @DeleteMapping("/{id}")

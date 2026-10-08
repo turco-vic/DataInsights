@@ -18,6 +18,7 @@ public class EventoService {
     public static final String LOGIN_FALHOU = "login_falhou";
     public static final String CADASTRO = "cadastro";
     public static final String IMPORTACAO = "importacao";
+    public static final String IMPORTACAO_RECUSADA = "importacao_recusada";
     public static final String CLIENTE_EXCLUIDO = "cliente_excluido";
     public static final String USUARIO_CRIADO = "usuario_criado";
     public static final String USUARIO_EXCLUIDO = "usuario_excluido";

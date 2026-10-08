@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import SemPlanilhas from '../../components/SemPlanilhas.vue';
+import api, { mensagemErro } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { usePlanilhasStore } from '../../stores/planilhasStore';
+import { useUiStore } from '../../stores/uiStore';
 import { dataHora, moedaCompacta, porcentagem } from '../../utils/formato';
 
 const router = useRouter();
@@ -22,6 +24,27 @@ const tabs = [
 ];
 
 const imprimir = () => window.print();
+
+const ui = useUiStore();
+const baixando = ref(false);
+
+/** Baixa o dataset limpo desta planilha em CSV: é a entrada da etapa de Ciência de Dados. */
+async function baixarCsv() {
+  baixando.value = true;
+  try {
+    const resposta = await api.get(`/api/importacoes/${p.value.id}/csv`, { responseType: 'blob' });
+    const url = URL.createObjectURL(resposta.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${p.value.nome.replace(/\.[^.]+$/, '')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    ui.notificar(mensagemErro(error, 'Não foi possível baixar o CSV.'), 'erro');
+  } finally {
+    baixando.value = false;
+  }
+}
 
 const acento = ['bg-navy', 'bg-ocean', 'bg-sky'];
 
@@ -66,6 +89,10 @@ const niveis = computed(() => {
           >
             <option v-for="item in planilhas.lista" :key="item.id" :value="String(item.id)">{{ item.nomeArquivo }} · {{ dataHora(item.enviadaEm) }}</option>
           </select>
+          <button
+            type="button" @click="baixarCsv" :disabled="baixando"
+            class="rounded-lg border border-navy/15 bg-white px-5 py-2.5 text-sm font-medium text-navy/70 transition hover:text-navy disabled:opacity-60"
+          >{{ baixando ? 'Baixando…' : 'Baixar CSV' }}</button>
           <button type="button" @click="imprimir" class="rounded-lg border border-navy/15 bg-white px-5 py-2.5 text-sm font-medium text-navy/70 transition hover:text-navy">Imprimir / PDF</button>
           <button type="button" @click="router.push('/app')" class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy">Abrir dashboard</button>
         </div>

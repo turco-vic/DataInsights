@@ -21,6 +21,7 @@ export const EVENTOS = {
   login_falhou: 'Login recusado',
   cadastro: 'Cadastro',
   importacao: 'Importação',
+  importacao_recusada: 'Importação recusada',
   planilha_validada: 'Planilha validada',
   cliente_excluido: 'Cliente excluído',
   usuario_criado: 'Usuário criado',

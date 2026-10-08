@@ -74,7 +74,7 @@ function enviar() {
     </label>
     <label class="flex flex-col gap-1.5">
       <span :class="rotulo">Faturamento anual (R$)</span>
-      <input v-model="dados.faturamentoAnual" type="number" min="0" step="0.01" :class="campo" />
+      <input v-model="dados.faturamentoAnual" type="number" min="0.01" step="0.01" :class="campo" />
     </label>
     <label class="flex flex-col gap-1.5">
       <span :class="rotulo">Data de contratação</span>

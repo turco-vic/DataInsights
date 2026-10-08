@@ -3,9 +3,13 @@ package com.cti.provedor.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,26 +92,37 @@ public class InsightService {
                 .filter(Objects::nonNull)
                 .toList());
 
+        // Contagens e insights existentes vêm em duas consultas, não em uma por cliente:
+        // com o banco na nuvem, cada consulta a menos pesa no tempo da importação.
+        Map<Long, Long> ativosPorCliente = new HashMap<>();
+        for (Object[] par : contratoRepository.contarAtivosPorCliente()) {
+            ativosPorCliente.put((Long) par[0], (Long) par[1]);
+        }
+        Set<String> existentes = new HashSet<>();
+        for (Object[] par : repository.clientesETipos()) {
+            existentes.add(par[0] + "|" + par[1]);
+        }
+
         int criados = 0;
         for (Cliente cliente : clientes) {
-            long servicosAtivos = contratoRepository.countByClienteIdAndAtivoTrue(cliente.getId());
+            long servicosAtivos = ativosPorCliente.getOrDefault(cliente.getId(), 0L);
 
             if ("A".equals(cliente.getNivel()) && servicosAtivos == 1) {
-                criados += criarSeNovo(cliente, TIPO_OPORTUNIDADE,
+                criados += criarSeNovo(cliente, TIPO_OPORTUNIDADE, existentes,
                         "Cliente nível A com apenas 1 serviço ativo: há espaço para oferecer outros serviços.");
             }
             if ("C".equals(cliente.getNivel()) && mediaNivelA != null && cliente.getFaturamentoAnual() != null
                     && cliente.getFaturamentoAnual().compareTo(mediaNivelA) > 0) {
-                criados += criarSeNovo(cliente, TIPO_REVISAR_NIVEL, "Faturamento anual de "
+                criados += criarSeNovo(cliente, TIPO_REVISAR_NIVEL, existentes, "Faturamento anual de "
                         + moeda(cliente.getFaturamentoAnual()) + " está acima da média dos clientes nível A ("
                         + moeda(mediaNivelA) + "). Vale revisar o nível.");
             }
             if (servicosAtivos == 0) {
-                criados += criarSeNovo(cliente, TIPO_SEM_CONTRATO,
+                criados += criarSeNovo(cliente, TIPO_SEM_CONTRATO, existentes,
                         "Cliente sem nenhum contrato ativo: confirme se ainda é cliente ou se há risco de perda.");
             }
             if (cliente.getConsultor() == null) {
-                criados += criarSeNovo(cliente, TIPO_SEM_CONSULTOR, "Cliente sem consultor responsável.");
+                criados += criarSeNovo(cliente, TIPO_SEM_CONSULTOR, existentes, "Cliente sem consultor responsável.");
             }
         }
         if (criados > 0) {
@@ -116,8 +131,8 @@ public class InsightService {
         return criados;
     }
 
-    private int criarSeNovo(Cliente cliente, String tipo, String descricao) {
-        if (repository.existsByClienteIdAndTipo(cliente.getId(), tipo)) {
+    private int criarSeNovo(Cliente cliente, String tipo, Set<String> existentes, String descricao) {
+        if (!existentes.add(cliente.getId() + "|" + tipo)) {
             return 0;
         }
         Insight insight = new Insight();

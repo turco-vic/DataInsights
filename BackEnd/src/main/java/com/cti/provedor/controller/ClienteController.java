@@ -19,6 +19,7 @@ import com.cti.provedor.dto.ClienteImportacaoDTO;
 import com.cti.provedor.dto.ImportacaoResultadoDTO;
 import com.cti.provedor.model.Cliente;
 import com.cti.provedor.service.ClienteService;
+import com.cti.provedor.service.ClienteValidacaoService;
 
 import jakarta.validation.Valid;
 
@@ -27,11 +28,25 @@ import jakarta.validation.Valid;
 public class ClienteController {
 
     private final ClienteService service;
+    private final ClienteValidacaoService validacao;
 
-    public ClienteController(ClienteService service) {
+    public ClienteController(ClienteService service, ClienteValidacaoService validacao) {
         this.service = service;
+        this.validacao = validacao;
     }
 
+    /**
+     * Valida e padroniza a lista sem gravar nada (aula de validação no backend).
+     * Devolve a lista preparada, ou 400 com todas as inconsistências encontradas.
+     * Não usa @Valid: a padronização ("IND." → "Indústria", "sp" → "SP") precisa acontecer
+     * antes das anotações do DTO, e o ClienteValidacaoService valida item por item depois dela.
+     */
+    @PostMapping("/validar")
+    public List<ClienteImportacaoDTO> validar(@RequestBody List<ClienteImportacaoDTO> clientes) {
+        return validacao.validarEPreparar(clientes);
+    }
+
+    /** Importa só se o lote inteiro estiver consistente; com qualquer inconsistência, nada é gravado. */
     @PostMapping("/importar")
     public ImportacaoResultadoDTO importar(@RequestBody List<ClienteImportacaoDTO> dados) {
         return service.importar(dados);

@@ -22,9 +22,10 @@ public class ImportacaoDTO {
     @PositiveOrZero
     private int totalLinhas;
 
-    /** Erros de validação encontrados no front-end (as linhas com erro não vêm em clientes). */
+    /** Erros apontados pela validação do front-end. Se houver algum, a planilha é recusada inteira. */
     private List<ErroPlanilha> erros = new ArrayList<>();
 
+    /** Todas as linhas da planilha. Sem @Valid de propósito: o ClienteValidacaoService padroniza antes de validar. */
     @NotNull
     private List<ClienteImportacaoDTO> clientes;
 

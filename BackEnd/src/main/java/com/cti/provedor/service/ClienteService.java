@@ -1,10 +1,7 @@
 package com.cti.provedor.service;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -27,8 +24,6 @@ import com.cti.provedor.repository.InsightRepository;
 import com.cti.provedor.repository.ServicoRepository;
 import com.cti.provedor.repository.TelemetriaRepository;
 
-import jakarta.validation.Validator;
-
 @Service
 public class ClienteService {
 
@@ -39,12 +34,12 @@ public class ClienteService {
     private final InsightRepository insightRepository;
     private final TelemetriaRepository telemetriaRepository;
     private final EventoService eventos;
-    private final Validator validator;
+    private final ClienteValidacaoService validacao;
 
     public ClienteService(ClienteRepository clienteRepository, ConsultorRepository consultorRepository,
             ServicoRepository servicoRepository, ContratoRepository contratoRepository,
             InsightRepository insightRepository, TelemetriaRepository telemetriaRepository, EventoService eventos,
-            Validator validator) {
+            ClienteValidacaoService validacao) {
         this.clienteRepository = clienteRepository;
         this.consultorRepository = consultorRepository;
         this.servicoRepository = servicoRepository;
@@ -52,7 +47,7 @@ public class ClienteService {
         this.insightRepository = insightRepository;
         this.telemetriaRepository = telemetriaRepository;
         this.eventos = eventos;
-        this.validator = validator;
+        this.validacao = validacao;
     }
 
     /** Filtros opcionais: busca (nome, código ou e-mail), segmento, nível, UF e consultor. */
@@ -143,19 +138,17 @@ public class ClienteService {
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Consultor não encontrado")));
     }
 
+    /** Valida o lote inteiro e só grava se não houver nenhuma inconsistência (tudo ou nada). */
     @Transactional
     public ImportacaoResultadoDTO importar(List<ClienteImportacaoDTO> dados) {
-        ImportacaoResultadoDTO resultado = new ImportacaoResultadoDTO(dados.size());
-        Set<String> codigosNoLote = new HashSet<>();
-        Set<String> emailsNoLote = new HashSet<>();
+        return gravarLote(validacao.validarEPreparar(dados));
+    }
 
-        for (ClienteImportacaoDTO dto : dados) {
-            String motivo = validar(dto, codigosNoLote, emailsNoLote);
-            if (motivo != null) {
-                resultado.rejeitar(dto.getCodigoCliente(), motivo);
-                continue;
-            }
-
+    /** Grava um lote já validado e padronizado pelo ClienteValidacaoService. */
+    @Transactional
+    public ImportacaoResultadoDTO gravarLote(List<ClienteImportacaoDTO> clientes) {
+        ImportacaoResultadoDTO resultado = new ImportacaoResultadoDTO(clientes.size());
+        for (ClienteImportacaoDTO dto : clientes) {
             Optional<Cliente> existente = clienteRepository.findByCodigo(dto.getCodigoCliente());
             Cliente cliente = existente.orElseGet(Cliente::new);
             preencher(cliente, dto);
@@ -168,41 +161,20 @@ public class ClienteService {
                 resultado.somarCriado();
             }
         }
-
         return resultado;
-    }
-
-    private String validar(ClienteImportacaoDTO dto, Set<String> codigosNoLote, Set<String> emailsNoLote) {
-        String erros = validator.validate(dto).stream()
-                .map(v -> v.getPropertyPath() + " " + v.getMessage())
-                .sorted()
-                .collect(Collectors.joining("; "));
-        if (!erros.isEmpty()) {
-            return erros;
-        }
-        if (!codigosNoLote.add(dto.getCodigoCliente())) {
-            return "codigoCliente repetido no envio";
-        }
-        if (!emailsNoLote.add(dto.getEmail().toLowerCase())) {
-            return "email repetido no envio";
-        }
-        if (clienteRepository.existsByEmailIgnoreCaseAndCodigoNot(dto.getEmail(), dto.getCodigoCliente())) {
-            return "email já pertence a outro cliente";
-        }
-        return null;
     }
 
     private void preencher(Cliente cliente, ClienteImportacaoDTO dto) {
         cliente.setCodigo(dto.getCodigoCliente());
-        cliente.setNome(dto.getNomeCliente().trim());
-        cliente.setEmail(dto.getEmail().trim().toLowerCase());
+        cliente.setNome(dto.getNomeCliente());
+        cliente.setEmail(dto.getEmail());
         cliente.setSegmento(dto.getSegmento());
         cliente.setNivel(dto.getNivelCliente());
         cliente.setFaturamentoAnual(dto.getFaturamentoAnual());
         cliente.setDataContratacao(dto.getDataContratacao());
         cliente.setCidade(dto.getCidade());
         cliente.setUf(dto.getUf());
-        cliente.setConsultor(buscarOuCriarConsultor(dto.getConsultor().trim()));
+        cliente.setConsultor(buscarOuCriarConsultor(dto.getConsultor()));
     }
 
     private Consultor buscarOuCriarConsultor(String nome) {
@@ -215,7 +187,7 @@ public class ClienteService {
 
     private void vincularServicos(Cliente cliente, ClienteImportacaoDTO dto) {
         for (String nome : dto.getServicosContratados()) {
-            Servico servico = buscarOuCriarServico(nome.trim());
+            Servico servico = buscarOuCriarServico(nome);
             if (contratoRepository.existsByClienteAndServico(cliente, servico)) {
                 continue;
             }

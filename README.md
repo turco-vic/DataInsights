@@ -12,7 +12,9 @@ Projeto Integrador desenvolvido para a disciplina de Framework Front-End (SENAI)
 
 - **Upload Simples** — envie planilhas `.xlsx`, `.xls` ou `.csv` (até 50 MB)
 - **Tratamento de Dados** — padronização e limpeza automática no navegador (pode ser desligada em Configurações)
-- **Validação** — campos obrigatórios vazios, códigos duplicados e níveis inválidos são apontados linha a linha
+- **Validação** — campos obrigatórios vazios, códigos duplicados e níveis inválidos são apontados linha a linha, no front e de novo no back-end
+- **Tudo ou nada** — só uma planilha 100% consistente entra no sistema; com qualquer inconsistência, nada é gravado
+- **Dataset em CSV** — cada planilha importada pode ser baixada limpa e padronizada, pronta para a etapa de Ciência de Dados
 - **Histórico de Planilhas** — cada envio fica guardado no servidor, com erros, recusas e relatório do dataset
 - **Dashboard da Carteira** — KPIs e gráficos calculados sobre todos os clientes do banco
 - **Cadastros** — clientes (com contratos, insights e atividade), consultores e serviços
@@ -78,11 +80,63 @@ A padronização segue a aba `dicionario_dados` da planilha modelo e acontece em
 | `consultor` | trim; capitalização (`ANA SOUZA` → `Ana Souza`) |
 | `segmento` | unificação de variações (`IND.`, `Industria`, `INDUSTRIA` → `Indústria`) |
 | `nivel_cliente` | uppercase; somente A, B ou C |
-| `faturamento_anual` | conversão para número; validação de vazio e negativo |
+| `faturamento_anual` | conversão para número; precisa ser maior que zero |
 | `servicos_contratados` | separação por `;` com remoção de espaços |
 | `data_contratacao` | conversão para data válida |
 | `cidade` | trim; capitalização |
 | `uf` | uppercase; validação de 2 caracteres |
+
+## 🛡️ Validação no Back-end
+
+O front valida para ajudar quem envia a planilha; o back-end valida de novo para proteger a API
+(alguém pode chamar a rota direto pelo Thunder Client ou pelo Postman). A regra combinada com a
+professora é **tudo ou nada**: o sistema aponta todas as inconsistências, mas só importa uma planilha
+100% consistente.
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `dto/ClienteImportacaoDTO.java` | regras de uma linha com Jakarta Validation (`@NotBlank`, `@NotNull`, `@Positive`, `@Pattern`, `@Size`, `@Email`, `@PastOrPresent`), com mensagens em português |
+| `service/ClienteValidacaoService.java` | padroniza (espaços, `IND.` → `Indústria`, `sp` → `SP`, `ANA SOUZA` → `Ana Souza`), valida cada linha, procura código e e-mail repetidos no lote e e-mail de outro cliente no banco; junta **todas** as inconsistências |
+| `exception/GlobalExceptionHandler.java` | transforma os erros em JSON simples; erros inesperados viram uma mensagem curta e o detalhe fica só no log |
+
+A padronização acontece **antes** das anotações do DTO, por isso as rotas de planilha não usam `@Valid`
+na lista: o `ClienteValidacaoService` chama o `Validator` item por item depois de padronizar.
+
+**Rotas**
+
+| Rota | O que faz |
+|------|-----------|
+| `POST /api/clientes/validar` | valida e padroniza uma lista de clientes **sem gravar** e devolve a lista preparada |
+| `POST /api/importacoes` | valida a planilha inteira; se estiver consistente, grava os clientes e o histórico |
+| `GET /api/importacoes/{id}/csv` | baixa o dataset limpo de uma planilha importada (UTF-8, separado por vírgula) |
+
+**Teste no Thunder Client** (com `Authorization: Bearer <token>` de um administrador ou analista):
+
+```http
+POST http://localhost:8080/api/clientes/validar
+Content-Type: application/json
+
+[{ "codigoCliente": "CTI001", "nomeCliente": "Metalúrgica Horizonte", "email": "contato@mh.com.br",
+   "consultor": "ANA SOUZA", "segmento": "IND.", "nivelCliente": "a", "faturamentoAnual": 1850000,
+   "servicosContratados": ["Internet Dedicada", "Firewall"], "dataContratacao": "2025-01-15",
+   "cidade": "Campinas", "uf": "sp" }]
+```
+
+Resposta `200` com `"segmento": "Indústria"`, `"consultor": "Ana Souza"`, `"nivelCliente": "A"` e `"uf": "SP"`.
+Com dados inválidos, a resposta é `400` e lista todas as inconsistências:
+
+```json
+{
+  "status": 400,
+  "mensagem": "A planilha tem 2 inconsistência(s). Nada foi importado: corrija todas e envie novamente.",
+  "inconsistencias": [
+    { "linha": 2, "codigoCliente": "CTI002", "campo": "nivel_cliente", "erro": "O nível deve ser A, B ou C" },
+    { "linha": 3, "codigoCliente": "CTI002", "campo": "codigo_cliente", "erro": "O código CTI002 já aparece na linha 2" }
+  ]
+}
+```
+
+Sem o campo `linha` no JSON, o back-end conta como planilha: o primeiro cliente é a linha 2 (a linha 1 é o cabeçalho).
 
 ## 🎨 Identidade Visual
 
@@ -142,9 +196,11 @@ mostrar o link de contato no rodapé (`VITE_CONTATO_EMAIL`).
 
 ## 🧭 Arquitetura
 
-O front-end **não acessa o banco diretamente**: valida a planilha no navegador e envia
-as linhas válidas para `POST /api/importacoes`. O Spring Boot importa os clientes,
-guarda o histórico da planilha, gera os insights automáticos e registra a telemetria.
+O front-end **não acessa o banco diretamente**: valida a planilha no navegador e, se não houver
+nenhum erro, envia todas as linhas para `POST /api/importacoes`. O Spring Boot padroniza e valida
+o lote de novo; se estiver consistente, importa os clientes, guarda o histórico da planilha, gera
+os insights automáticos e registra a telemetria. Se não estiver, devolve as inconsistências e não
+grava nada (a recusa fica registrada na telemetria).
 Dashboard, clientes e relatórios são lidos da API, com o token JWT de quem está logado.
 
 ## 👤 Autor

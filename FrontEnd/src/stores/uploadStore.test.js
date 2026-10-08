@@ -1,6 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
+import api from '../services/api';
 import { TIPOS_AVISO, TIPOS_ERRO, useUploadStore } from './uploadStore';
+
+vi.mock('../services/api', () => ({
+  default: { post: vi.fn(() => Promise.resolve({ data: {} })) },
+  mensagemErro: (error, padrao) => error.response?.data?.mensagem || padrao,
+}));
 
 const linha = (numero, campos = {}) => ({
   numero_linha: numero,
@@ -66,6 +72,58 @@ describe('uploadStore', () => {
     expect(tipos).toContain(`4:${TIPOS_ERRO.VAZIO}`);
     expect(tipos).toContain(`5:${TIPOS_ERRO.DUPLICADO}`);
     expect(store.registrosValidos).toBe(1);
+    // Uma linha boa não basta: com qualquer erro, a planilha inteira fica bloqueada.
+    expect(store.podeEnviar).toBe(false);
+  });
+
+  it('exige faturamento maior que zero', () => {
+    const store = useUploadStore();
+    validar(store, [linha(2, { faturamento_anual: '0' })]);
+
+    expect(store.erros).toEqual([
+      expect.objectContaining({ linha: 2, campo: 'faturamento_anual', tipo: TIPOS_ERRO.FORA_PADRAO }),
+    ]);
+    expect(store.podeEnviar).toBe(false);
+  });
+
+  it('envia todas as linhas e mostra as inconsistências que o servidor recusar', async () => {
+    const store = useUploadStore();
+    store.arquivo = { name: 'carteira.xlsx' };
+    validar(store, [linha(2), linha(3, { codigo_cliente: 'CTI002', email: 'b@empresa.com' })]);
+    expect(store.podeEnviar).toBe(true);
+
+    api.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: {
+          mensagem: 'A planilha tem 1 inconsistência(s). Nada foi importado: corrija todas e envie novamente.',
+          inconsistencias: [{ linha: 3, codigoCliente: 'CTI002', campo: 'email', erro: 'O e-mail já pertence a outro cliente' }],
+        },
+      },
+    });
+    expect(await store.importar()).toBe(false);
+
+    const [, corpo] = api.post.mock.calls.at(-1);
+    expect(corpo.clientes.map((c) => c.linha)).toEqual([2, 3]);
+    expect(store.erros).toEqual([
+      { linha: 3, campo: 'email', tipo: TIPOS_ERRO.SERVIDOR, descricao: 'O e-mail já pertence a outro cliente' },
+    ]);
+    expect(store.erroImportacao).toContain('Nada foi importado');
+    expect(store.podeEnviar).toBe(false);
+  });
+
+  it('sem resposta do servidor, não afirma que nada foi gravado', async () => {
+    const store = useUploadStore();
+    store.arquivo = { name: 'carteira.xlsx' };
+    validar(store, [linha(2)]);
+
+    api.post.mockRejectedValueOnce({ code: 'ECONNABORTED' });
+    expect(await store.importar()).toBe(false);
+
+    expect(api.post.mock.calls.at(-1)[2]).toEqual({ timeout: 120000 });
+    expect(store.erroImportacao).toContain('pode ter sido concluída');
+    expect(store.erroImportacao).not.toContain('Nada foi gravado');
+    expect(store.erros).toEqual([]);
   });
 
   it('bloqueia o envio quando falta uma coluna obrigatória', () => {

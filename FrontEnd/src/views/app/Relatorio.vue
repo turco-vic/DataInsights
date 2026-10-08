@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import Icon from '../../components/Icon.vue';
 import SemPlanilhas from '../../components/SemPlanilhas.vue';
@@ -19,12 +19,13 @@ const SITUACAO = {
   erro: { label: 'Erro', cls: 'bg-red-600/10 text-red-700' },
   corrigido: { label: 'Corrigido', cls: 'bg-sky/15 text-ocean' },
   ok: { label: 'OK', cls: 'bg-emerald-600/10 text-emerald-700' },
-  valido: { label: 'Serão enviados', cls: 'bg-emerald-600/10 text-emerald-700' },
+  valido: { label: 'Válidos', cls: 'bg-emerald-600/10 text-emerald-700' },
 };
 
 const resumo = computed(() => [
   ...upload.errosPorTipo
-    .filter((e) => e.tipo !== TIPOS_ERRO.COLUNA || e.quantidade)
+    // Coluna ausente e recusa do servidor só aparecem quando acontecem.
+    .filter((e) => (e.tipo !== TIPOS_ERRO.COLUNA && e.tipo !== TIPOS_ERRO.SERVIDOR) || e.quantidade)
     .map((e) => ({ ...e, aba: 'erros', situacao: e.quantidade ? 'erro' : 'ok' })),
   ...upload.avisosPorTipo.map((a) => ({ ...a, aba: 'avisos', situacao: a.quantidade ? 'corrigido' : 'ok' })),
   { tipo: 'Registros válidos', quantidade: upload.registrosValidos, situacao: 'valido' },
@@ -60,34 +61,19 @@ function verTipo(item) {
   document.getElementById('detalhes')?.scrollIntoView({ behavior: 'smooth' });
 }
 
-const modalAberto = ref(false);
-const confirmacao = ref('');
-const campoConfirmacao = ref(null);
 const envio = ref(null);
 
-const confirmacaoCorreta = computed(() => confirmacao.value.trim() === upload.nomeArquivo);
+async function enviar() {
+  const nome = upload.nomeArquivo;
+  const enviados = upload.totalRegistros;
 
-function pedirConfirmacao() {
-  if (!upload.registrosComErro) {
-    enviar();
+  // Se o servidor recusar, as inconsistências dele entram na lista de erros desta tela.
+  if (!(await upload.importar())) {
+    if (upload.totalErros) trocarAba('erros');
     return;
   }
-  confirmacao.value = '';
-  modalAberto.value = true;
-  nextTick(() => campoConfirmacao.value?.focus());
-}
 
-async function enviar() {
-  modalAberto.value = false;
-
-  const nome = upload.nomeArquivo;
-  const enviados = upload.registrosValidos;
-  const descartados = upload.registrosComErro;
-
-  // Se falhar, os dados continuam na tela para tentar de novo.
-  if (!(await upload.importarValidos())) return;
-
-  const { resumo, rejeitados } = upload.resultadoImportacao;
+  const { resumo } = upload.resultadoImportacao;
   upload.limpar();
   planilhas.carregarLista().then(() => planilhas.selecionar(resumo.id));
 
@@ -96,7 +82,7 @@ async function enviar() {
     router.push('/app');
     return;
   }
-  envio.value = { nome, enviados, descartados, resumo, rejeitados };
+  envio.value = { nome, enviados, resumo };
 }
 
 function corrigirEReenviar() {
@@ -119,19 +105,13 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
           <div>
             <div class="text-[15px] font-semibold text-navy">{{ envio.nome }} enviada</div>
             <div class="text-[13px] text-navy/60">
-              {{ envio.enviados }} registro(s) salvo(s)<span v-if="envio.descartados"> · {{ envio.descartados }} linha(s) com erro ficaram de fora</span>
+              {{ envio.enviados }} registro(s) salvo(s) · planilha 100% consistente
             </div>
           </div>
         </div>
 
         <div class="mt-5 rounded-lg bg-emerald-50 px-4 py-3 text-[13px] text-emerald-800">
           {{ envio.resumo.criados }} cliente(s) criado(s) e {{ envio.resumo.atualizados }} atualizado(s) no banco. A planilha entrou no histórico da equipe.
-        </div>
-        <div v-if="envio.rejeitados.length" class="mt-3 rounded-lg border border-amber-500/30 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-          <div class="font-semibold">{{ envio.rejeitados.length }} registro(s) recusado(s) pelo servidor:</div>
-          <ul class="mt-1 space-y-0.5">
-            <li v-for="r in envio.rejeitados" :key="r.codigoCliente + r.motivo">· {{ r.codigoCliente || '—' }}: {{ r.motivo }}</li>
-          </ul>
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
@@ -162,14 +142,15 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
             class="rounded-lg border border-navy/15 bg-white px-5 py-2.5 text-sm font-medium text-navy/70 transition hover:text-navy"
           >Corrigir e reenviar</button>
           <button
-            type="button" @click="pedirConfirmacao" :disabled="!upload.podeEnviar || upload.importando"
+            type="button" @click="enviar" :disabled="!upload.podeEnviar || upload.importando"
+            :title="upload.podeEnviar ? '' : 'Corrija todas as inconsistências para liberar o envio'"
             class="rounded-lg bg-ocean px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy disabled:cursor-not-allowed disabled:opacity-50"
-          >{{ upload.importando ? 'Enviando…' : `Enviar ${upload.registrosValidos} registro(s)` }}</button>
+          >{{ upload.importando ? 'Enviando…' : upload.podeEnviar ? `Enviar ${upload.totalRegistros} registro(s)` : 'Envio bloqueado' }}</button>
         </div>
       </div>
 
       <div v-if="upload.erroImportacao" role="alert" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-4 text-[13px] font-semibold text-red-800">
-        A importação falhou: {{ upload.erroImportacao }} Os dados continuam aqui; tente enviar de novo.
+        {{ upload.erroImportacao }}
       </div>
 
       <div v-if="upload.errosEstrutura.length" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-5">
@@ -179,8 +160,13 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
         </ul>
         <p class="mt-3 text-[13px] text-red-900/70">Colunas esperadas: {{ COLUNAS_MODELO.join(', ') }}.</p>
       </div>
-      <div v-else-if="!upload.registrosValidos" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-4 text-[13px] font-semibold text-red-800">
-        Nenhum registro passou na validação. Corrija a planilha e envie de novo.
+      <div v-else-if="upload.totalErros" class="mt-6 rounded-xl border border-red-500/30 bg-red-50 px-6 py-5">
+        <h2 class="text-sm font-bold text-red-800">
+          A planilha tem {{ upload.totalErros }} inconsistência(s) em {{ upload.registrosComErro }} linha(s) e não pode ser enviada
+        </h2>
+        <p class="mt-1.5 text-[13px] leading-relaxed text-red-900/80">
+          Só planilhas 100% consistentes entram no sistema. Corrija as linhas listadas abaixo no arquivo e envie de novo.
+        </p>
       </div>
 
       <div class="mt-6 grid gap-px overflow-hidden rounded-xl border border-navy/10 bg-navy/10 sm:grid-cols-2 lg:grid-cols-4">
@@ -265,7 +251,7 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
         </div>
 
         <p v-if="!filtrados.length" class="px-6 py-10 text-center text-sm text-navy/55">
-          {{ aba === 'erros' ? 'Nenhum erro encontrado. Todos os registros podem ser enviados.' : 'Nenhuma correção foi necessária.' }}
+          {{ aba === 'erros' ? 'Nenhum erro encontrado. A planilha pode ser enviada.' : 'Nenhuma correção foi necessária.' }}
         </p>
 
         <div v-else class="overflow-x-auto pt-2">
@@ -300,44 +286,5 @@ const linhaDoItem = (item) => (item.linha === 1 ? 'Cabeçalho' : item.linha);
         </div>
       </section>
     </template>
-
-    <div
-      v-if="modalAberto"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-navy/40 px-4"
-      @click.self="modalAberto = false" @keydown.esc="modalAberto = false"
-    >
-      <div role="dialog" aria-modal="true" aria-labelledby="titulo-confirmacao" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div class="flex items-center justify-between border-b border-navy/10 px-6 py-4">
-          <h2 id="titulo-confirmacao" class="text-[15px] font-bold text-navy">Enviar {{ upload.nomeArquivo }}?</h2>
-          <button type="button" @click="modalAberto = false" aria-label="Fechar" class="text-xl leading-none text-navy/40 hover:text-navy">×</button>
-        </div>
-
-        <div class="border-b border-amber-500/30 bg-amber-50 px-6 py-3 text-[13px] font-semibold text-amber-900">
-          Esta planilha tem problemas. Leia antes de continuar.
-        </div>
-
-        <div class="px-6 py-5">
-          <ul class="space-y-2 text-[13px] leading-relaxed text-navy/75">
-            <li><span class="font-bold text-emerald-700">{{ upload.registrosValidos }}</span> registro(s) válido(s) serão enviados.</li>
-            <li><span class="font-bold text-red-700">{{ upload.registrosComErro }}</span> registro(s) com erro serão <strong>descartados</strong> e não entram no sistema.</li>
-            <li v-if="upload.totalAvisos"><span class="font-bold text-ocean">{{ upload.totalAvisos }}</span> correção(ões) automática(s) já foram aplicadas.</li>
-          </ul>
-          <p class="mt-3 text-[13px] text-navy/60">Para enviar as linhas descartadas, cancele, corrija a planilha e envie de novo.</p>
-
-          <label for="confirmacao" class="mt-5 block text-[13px] text-navy/75">
-            Para confirmar, digite <strong class="text-navy">{{ upload.nomeArquivo }}</strong> abaixo:
-          </label>
-          <input
-            id="confirmacao" ref="campoConfirmacao" v-model="confirmacao" type="text" autocomplete="off" spellcheck="false"
-            @keydown.enter="confirmacaoCorreta && enviar()"
-            class="mt-2 w-full rounded-lg border border-navy/20 px-3.5 py-2.5 text-sm text-navy outline-none focus:border-ocean"
-          />
-          <button
-            type="button" @click="enviar" :disabled="!confirmacaoCorreta"
-            class="mt-4 w-full rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >Entendo as consequências, enviar mesmo assim</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>

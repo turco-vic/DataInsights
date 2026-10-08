@@ -21,7 +21,7 @@ const etapas = computed(() => [
     c: 'text-navy',
   },
   { t: '2 · Validação', d: 'Campos vazios, e-mails, duplicados e formatos verificados.', c: 'text-ocean' },
-  { t: '3 · Relatório', d: 'Você revisa os problemas e confirma o envio.', c: 'text-sky' },
+  { t: '3 · Relatório', d: 'Você revisa os problemas. Só planilhas sem nenhum erro podem ser enviadas.', c: 'text-sky' },
 ]);
 
 function abrirSeletor() {
@@ -49,7 +49,7 @@ function aoSoltar(evento) {
 <template>
   <div class="max-w-[860px]">
     <h1 class="text-2xl font-bold tracking-tight text-navy sm:text-3xl">Upload de planilha</h1>
-    <p class="mt-1.5 text-sm text-navy/60">Envie um arquivo Excel ou CSV. Ele é validado antes de entrar no sistema.</p>
+    <p class="mt-1.5 text-sm text-navy/60">Envie um arquivo Excel ou CSV. Ele é validado antes de entrar no sistema e só entra se estiver 100% consistente.</p>
 
     <div
       v-if="upload.temDados"

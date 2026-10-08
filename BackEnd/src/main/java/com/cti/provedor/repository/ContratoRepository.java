@@ -20,6 +20,9 @@ public interface ContratoRepository extends JpaRepository<Contrato, Long> {
     long countByAtivoTrue();
 
     long countByClienteIdAndAtivoTrue(Long clienteId);
+    /** Pares [clienteId, contratos ativos], numa consulta só (evita uma consulta por cliente). */
+    @Query("select c.cliente.id, count(c) from Contrato c where c.ativo = true group by c.cliente.id")
+    List<Object[]> contarAtivosPorCliente();
 
     void deleteByClienteId(Long clienteId);
 
