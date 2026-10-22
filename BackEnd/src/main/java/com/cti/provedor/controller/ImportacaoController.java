@@ -63,6 +63,12 @@ public class ImportacaoController {
                 .body(csv);
     }
 
+    /** Envia a planilha de novo ao serviço Python (aula de Ciência de Dados). */
+    @PostMapping("/{id}/etl")
+    public ImportacaoRespostaDTOs.Resumo reprocessar(@PathVariable Long id) {
+        return service.reprocessar(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void excluir(@PathVariable Long id) {

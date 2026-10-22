@@ -10,7 +10,8 @@ public final class ImportacaoRespostaDTOs {
     }
 
     public record Resumo(Long id, String nomeArquivo, String autorNome, LocalDateTime enviadaEm, int totalLinhas,
-            int linhasComErro, int criados, int atualizados, int rejeitados, String status) {
+            int linhasComErro, int criados, int atualizados, int rejeitados, String status, String statusEtl,
+            String mensagemEtl) {
     }
 
     /** erros, rejeitados e clientes são devolvidos como foram gravados (listas de objetos JSON). */

@@ -35,9 +35,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import com.cti.provedor.model.EstatisticaLote;
 import com.cti.provedor.model.Papel;
 import com.cti.provedor.model.RedefinicaoSenha;
 import com.cti.provedor.model.Usuario;
+import com.cti.provedor.repository.EstatisticaLoteRepository;
 import com.cti.provedor.repository.RedefinicaoSenhaRepository;
 import com.cti.provedor.repository.UsuarioRepository;
 import com.cti.provedor.service.ResumoSemanalService;
@@ -61,6 +63,9 @@ class ApiIntegrationTests {
 
     @Autowired
     private ResumoSemanalService resumoSemanalService;
+
+    @Autowired
+    private EstatisticaLoteRepository estatisticaRepository;
 
     /** Token de um administrador criado para cada teste. */
     private String token;
@@ -363,6 +368,7 @@ class ApiIntegrationTests {
                 .andExpect(jsonPath("$.resumo.rejeitados").value(0))
                 .andExpect(jsonPath("$.resumo.linhasComErro").value(0))
                 .andExpect(jsonPath("$.resumo.status").value("processado"))
+                .andExpect(jsonPath("$.resumo.statusEtl").value("AGUARDANDO_ETL"))
                 .andExpect(jsonPath("$.resumo.autorNome").exists())
                 .andExpect(jsonPath("$.clientes", hasSize(2)))
                 .andExpect(jsonPath("$.clientes[0].codigoCliente").value(valido))
@@ -394,6 +400,25 @@ class ApiIntegrationTests {
                 .andExpect(content().string(containsString(outro + ",\"Outra, S.A.\",")))
                 .andExpect(content().string(containsString(",Indústria,B,20,Backup;Cloud,2025-06-01,,")));
 
+        // Etapa do Python: sem resultado ainda, estatisticas vem null; depois do ETL, vem o JSON gravado.
+        mvc.perform(auth(get("/api/estatisticas?loteId=" + id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lote.id").value(id))
+                .andExpect(jsonPath("$.lote.statusEtl").value("AGUARDANDO_ETL"))
+                .andExpect(jsonPath("$.estatisticas").doesNotExist());
+        EstatisticaLote estatistica = new EstatisticaLote();
+        estatistica.setLoteId(id.longValue());
+        estatistica.setGeradoEm(LocalDateTime.now());
+        estatistica.setResultado("{\"resumo\": {\"media\": 15.0}, \"insights\": [\"frase\"]}");
+        estatisticaRepository.save(estatistica);
+        mvc.perform(auth(get("/api/estatisticas")))
+                .andExpect(jsonPath("$.lote.id").value(id))
+                .andExpect(jsonPath("$.estatisticas.resumo.media").value(15.0))
+                .andExpect(jsonPath("$.estatisticas.insights[0]").value("frase"));
+        mvc.perform(auth(post("/api/importacoes/" + id + "/etl")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statusEtl").value("AGUARDANDO_ETL"));
+
         mvc.perform(auth(get("/api/dashboard")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalClientes", greaterThan(1)))
@@ -410,6 +435,7 @@ class ApiIntegrationTests {
 
         mvc.perform(auth(delete("/api/importacoes/" + id))).andExpect(status().isNoContent());
         mvc.perform(auth(get("/api/importacoes/" + id))).andExpect(status().isNotFound());
+        assertTrue(estatisticaRepository.findByLoteId(id.longValue()).isEmpty());
         mvc.perform(auth(get("/api/clientes?busca=" + valido))).andExpect(jsonPath("$", hasSize(1)));
     }
 
@@ -510,6 +536,17 @@ class ApiIntegrationTests {
                 .andExpect(jsonPath("$[0].nivelCliente").value("A"))
                 .andExpect(jsonPath("$[0].uf").value("SP"));
         mvc.perform(auth(get("/api/clientes?busca=" + codigo))).andExpect(jsonPath("$", hasSize(0)));
+
+        // Serviços também podem vir como texto separado por ";", como na planilha.
+        mvc.perform(json(auth(post("/api/clientes/validar")), """
+                [{"codigoCliente": "%s", "nomeCliente": "Metalúrgica Horizonte", "email": "%s",
+                  "consultor": "Ana Souza", "segmento": "IND.", "nivelCliente": "A", "faturamentoAnual": 1850000,
+                  "servicosContratados": "Internet Dedicada; Firewall;", "dataContratacao": "2025-01-15",
+                  "cidade": "Campinas", "uf": "SP"}]"""
+                .formatted(novoCodigo(), unico() + "@mh.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].servicosContratados", hasSize(2)))
+                .andExpect(jsonPath("$[0].servicosContratados[1]").value("Firewall"));
 
         // Teste 2 da aula: vários erros na mesma linha voltam todos juntos.
         mvc.perform(json(auth(post("/api/clientes/validar")), """

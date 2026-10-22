@@ -19,6 +19,7 @@ const grupos = [
     titulo: 'Análise',
     itens: [
       { to: '/app', label: 'Dashboard', icon: 'dashboard' },
+      { to: '/app/analise', label: 'Análise (Python)', icon: 'activity' },
       { to: '/app/upload', label: 'Upload de planilha', icon: 'upload', papeis: EDITORES },
       { to: '/app/relatorio', label: 'Relatório de validação', icon: 'check', papeis: EDITORES },
       { to: '/app/planilhas', label: 'Planilhas enviadas', icon: 'files' },

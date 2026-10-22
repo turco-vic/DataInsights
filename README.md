@@ -138,6 +138,53 @@ Com dados inválidos, a resposta é `400` e lista todas as inconsistências:
 
 Sem o campo `linha` no JSON, o back-end conta como planilha: o primeiro cliente é a linha 2 (a linha 1 é o cabeçalho).
 
+## 🐍 Ciência de Dados com Python (`analytics-python/`)
+
+Depois que a planilha é importada, o backend envia as linhas válidas ao serviço Python, que limpa,
+calcula e grava o resultado no mesmo PostgreSQL da Azure. A tela **Análise (Python)** mostra os gráficos.
+
+```
+Planilha → Pinia valida → Spring revalida e grava → PythonEtlService faz POST /etl
+→ Python (pandas) limpa, calcula e gera as frases → grava estatistica_lote → /app/analise desenha os gráficos
+```
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `api.py` | API FastAPI: `GET /saude`, `POST /etl` (grava no banco) e `POST /testar` (calcula sem gravar) |
+| `main.py` | `processar_lote`: reserva o lote, trata, calcula e grava; em caso de falha marca `ERRO` |
+| `limpeza.py` | padroniza textos, segmentos e serviços (`"A;B"` vira lista) e converte números e datas |
+| `analise.py` | média, mediana, desvio padrão, quartis, agrupamentos, correlação (scipy) |
+| `insights.py` | transforma os números em frases |
+| `banco.py` / `config.py` | conexão com o Azure (lê o `.env`) e gravação do resultado |
+| `BackEnd/.../service/PythonEtlService.java` | depois do commit da importação, envia as linhas ao Python |
+
+**Adaptação ao projeto:** os clientes e contratos já são gravados pelo backend na importação, então o
+Python grava só o que é dele: o JSON das análises (`estatistica_lote`) e a etapa do ETL
+(`importacoes.status_etl`: `AGUARDANDO_ETL` → `PROCESSANDO` → `PROCESSADO` ou `ERRO`).
+
+**Rodar** (três terminais; ligue o Python antes de enviar a planilha):
+
+```bash
+# 1) Python
+cd analytics-python
+python -m venv .venv
+.venv\Scripts\Activate.ps1          # Linux/Mac: source .venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env               # preencha DB_PASSWORD
+python testar_conexao.py             # deve mostrar "Conectou!"
+uvicorn api:app --port 8000          # http://localhost:8000/docs
+
+# 2) Back-end:  DB_PASSWORD=... ./mvnw spring-boot:run
+# 3) Front-end: npm run dev
+```
+
+**Testar:** em `http://localhost:8000/docs`, `POST /testar` com `amostras/clientes.json` deve devolver
+2 clientes, média e mediana 1135000, desvio padrão 1011162.7. Pelo Spring: `GET /api/estatisticas?loteId=<id>`
+devolve `{ lote, geradoEm, estatisticas }`; `POST /api/importacoes/<id>/etl` envia a planilha de novo ao Python.
+No banco: `SELECT status_etl, mensagem_etl FROM importacoes ORDER BY id DESC;` e
+`SELECT resultado::json -> 'resumo' ->> 'media' FROM estatistica_lote WHERE lote_id = <id>;`.
+Com o Python desligado, a importação fica com `ERRO` "Não foi possível falar com o serviço Python".
+
 ## 🎨 Identidade Visual
 
 Paleta baseada na marca CTI, seguindo a regra 60-30-10:
@@ -171,6 +218,8 @@ A API sobe em `http://localhost:8080`. Variáveis de ambiente:
 |----------|----------|--------|
 | `DB_PASSWORD` | senha do PostgreSQL | — |
 | `JWT_SECRET` | chave dos tokens (**troque em produção**) | valor de exemplo |
+| `ETL_URL` | endereço do serviço Python | `http://localhost:8000/etl` |
+| `ETL_KEY` | chave enviada no cabeçalho `X-ETL-Key` (igual ao `ETL_API_KEY` do Python) | vazia |
 | `FRONTEND_URL` | endereço usado nos links enviados por e-mail | `http://localhost:5173` |
 | `CADASTRO_ABERTO` | permite o cadastro público na tela "Criar acesso" | `true` |
 | `CADASTRO_PAPEL_PADRAO` | papel das contas criadas pelo cadastro público | `LEITOR` |

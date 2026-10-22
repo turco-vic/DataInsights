@@ -7,11 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cti.provedor.config.UsuarioLogado;
 import com.cti.provedor.dto.ClienteImportacaoDTO;
+import com.cti.provedor.dto.EstatisticaRespostaDTO;
 import com.cti.provedor.dto.ImportacaoDTO;
 import com.cti.provedor.dto.ImportacaoRespostaDTOs;
 import com.cti.provedor.dto.ImportacaoResultadoDTO;
@@ -19,7 +21,10 @@ import com.cti.provedor.dto.InconsistenciaDTO;
 import com.cti.provedor.exception.PlanilhaInconsistenteException;
 import com.cti.provedor.exception.RecursoNaoEncontradoException;
 import com.cti.provedor.exception.RegraNegocioException;
+import com.cti.provedor.model.EstatisticaLote;
 import com.cti.provedor.model.Importacao;
+import com.cti.provedor.model.LoteValidadoEvent;
+import com.cti.provedor.repository.EstatisticaLoteRepository;
 import com.cti.provedor.repository.ImportacaoRepository;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -49,15 +54,20 @@ public class ImportacaoService {
     private final ClienteValidacaoService validacao;
     private final InsightService insightService;
     private final EventoService eventos;
+    private final EstatisticaLoteRepository estatisticas;
+    private final ApplicationEventPublisher publicador;
     private final JsonMapper json;
 
     public ImportacaoService(ImportacaoRepository repository, ClienteService clienteService,
-            ClienteValidacaoService validacao, InsightService insightService, EventoService eventos, JsonMapper json) {
+            ClienteValidacaoService validacao, InsightService insightService, EventoService eventos,
+            EstatisticaLoteRepository estatisticas, ApplicationEventPublisher publicador, JsonMapper json) {
         this.repository = repository;
         this.clienteService = clienteService;
         this.validacao = validacao;
         this.insightService = insightService;
         this.eventos = eventos;
+        this.estatisticas = estatisticas;
+        this.publicador = publicador;
         this.json = json;
     }
 
@@ -91,10 +101,14 @@ public class ImportacaoService {
         importacao.setAtualizados(resultado.getAtualizados());
         importacao.setRejeitados(0);
         importacao.setStatus("processado");
+        importacao.setStatusEtl(PythonEtlService.AGUARDANDO);
+        importacao.setMensagemEtl("Aguardando o serviço Python calcular as estatísticas.");
         importacao.setErrosJson("[]");
         importacao.setRejeitadosJson("[]");
         importacao.setClientesJson(json.writeValueAsString(clientes));
         repository.save(importacao);
+        // Depois do commit, o PythonEtlService envia as linhas ao Python (aula de Ciência de Dados).
+        publicador.publishEvent(new LoteValidadoEvent(importacao.getId()));
 
         insightService.gerarAutomaticos();
         eventos.registrar(EventoService.IMPORTACAO, "%s por %s: %d criado(s), %d atualizado(s)"
@@ -130,7 +144,37 @@ public class ImportacaoService {
     public void excluir(Long id) {
         Importacao importacao = repository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Planilha não encontrada"));
+        estatisticas.deleteByLoteId(id);
         repository.delete(importacao);
+    }
+
+    /** Envia a planilha de novo ao Python (por exemplo, quando ele estava desligado no upload). */
+    @Transactional
+    public ImportacaoRespostaDTOs.Resumo reprocessar(Long id) {
+        Importacao importacao = repository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Planilha não encontrada"));
+        if ("PROCESSANDO".equals(importacao.getStatusEtl())) {
+            throw new RegraNegocioException("O Python ainda está processando esta planilha.");
+        }
+        importacao.setStatusEtl(PythonEtlService.AGUARDANDO);
+        importacao.setMensagemEtl("Aguardando o serviço Python calcular as estatísticas.");
+        repository.save(importacao);
+        publicador.publishEvent(new LoteValidadoEvent(id));
+        return resumo(importacao);
+    }
+
+    /**
+     * Estatísticas que o Python gravou para uma planilha (sem loteId: a mais recente).
+     * estatisticas vem null enquanto o Python não terminou.
+     */
+    public EstatisticaRespostaDTO estatisticas(Long loteId) {
+        Importacao importacao = (loteId == null ? repository.findFirstByOrderByEnviadaEmDesc()
+                : repository.findById(loteId))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Nenhuma planilha enviada ainda"));
+        EstatisticaLote estatistica = estatisticas.findByLoteId(importacao.getId()).orElse(null);
+        return new EstatisticaRespostaDTO(resumo(importacao),
+                estatistica == null ? null : estatistica.getGeradoEm(),
+                estatistica == null ? null : json.readValue(estatistica.getResultado(), Map.class));
     }
 
     /** Dataset limpo de uma importação em CSV (UTF-8, separado por vírgula), para a etapa de Ciência de Dados. */
@@ -172,7 +216,7 @@ public class ImportacaoService {
     static ImportacaoRespostaDTOs.Resumo resumo(Importacao i) {
         return new ImportacaoRespostaDTOs.Resumo(i.getId(), i.getNomeArquivo(), i.getAutorNome(), i.getEnviadaEm(),
                 i.getTotalLinhas(), i.getLinhasComErro(), i.getCriados(), i.getAtualizados(), i.getRejeitados(),
-                i.getStatus());
+                i.getStatus(), i.getStatusEtl(), i.getMensagemEtl());
     }
 
     private ImportacaoRespostaDTOs.Detalhe detalhe(Importacao i) {

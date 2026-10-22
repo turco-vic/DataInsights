@@ -27,6 +27,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', component: () => import('../views/app/Dashboard.vue') },
+        { path: 'analise', component: () => import('../views/app/Analise.vue') },
         { path: 'upload', component: () => import('../views/app/Upload.vue'), meta: { papeis: EDITORES } },
         { path: 'relatorio', component: () => import('../views/app/Relatorio.vue'), meta: { papeis: EDITORES } },
         { path: 'planilhas', component: () => import('../views/app/Files.vue') },

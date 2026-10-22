@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -56,6 +58,8 @@ public class ClienteImportacaoDTO {
     @Positive(message = "O faturamento anual deve ser maior que zero")
     private BigDecimal faturamentoAnual;
 
+    /** Aceita lista (["Backup", "Cloud"]) ou texto separado por ";" ("Backup;Cloud"), como na planilha. */
+    @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
     @NotEmpty(message = "Informe pelo menos um serviço contratado")
     private List<@NotBlank(message = "Os serviços contratados não podem ter itens vazios") String> servicosContratados;
 

@@ -115,6 +115,8 @@ public class ClienteValidacaoService {
         p.setFaturamentoAnual(c.getFaturamentoAnual());
         p.setServicosContratados(c.getServicosContratados() == null ? null
                 : c.getServicosContratados().stream()
+                        .filter(s -> s != null)
+                        .flatMap(s -> Arrays.stream(s.split(";")))
                         .map(ClienteValidacaoService::limpar)
                         .filter(s -> s != null && !s.isEmpty())
                         .distinct()

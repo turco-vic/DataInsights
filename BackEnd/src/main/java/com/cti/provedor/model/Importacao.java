@@ -34,6 +34,13 @@ public class Importacao {
     @Column(length = 20)
     private String status;
 
+    /** Etapa do Python: AGUARDANDO_ETL, PROCESSANDO, PROCESSADO ou ERRO. */
+    @Column(length = 20)
+    private String statusEtl;
+
+    @Column(length = 500)
+    private String mensagemEtl;
+
     /** Erros encontrados na validação da planilha (JSON). */
     @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     private String errosJson;
@@ -135,6 +142,22 @@ public class Importacao {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getStatusEtl() {
+        return statusEtl;
+    }
+
+    public void setStatusEtl(String statusEtl) {
+        this.statusEtl = statusEtl;
+    }
+
+    public String getMensagemEtl() {
+        return mensagemEtl;
+    }
+
+    public void setMensagemEtl(String mensagemEtl) {
+        this.mensagemEtl = mensagemEtl;
     }
 
     public String getErrosJson() {
