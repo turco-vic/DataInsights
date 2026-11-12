@@ -46,11 +46,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/usuarios/login", "/api/consultores/login",
-                                "/api/auth/cadastro", "/api/auth/esqueci-senha", "/api/auth/redefinir-senha").permitAll()
+                                "/api/auth/cadastro", "/api/auth/esqueci-senha", "/api/auth/redefinir-senha")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/publico/**").permitAll()
                         // Gestão de usuários: só administradores.
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
-                        // Telemetria: qualquer conta registra eventos; só administradores alteram ou apagam.
+                        // Telemetria: qualquer conta registra eventos; só administradores alteram ou
+                        // apagam.
                         .requestMatchers(HttpMethod.PUT, "/api/telemetrias/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/telemetrias/**").hasRole("ADMIN")
                         .requestMatchers("/api/telemetrias/**").authenticated()
@@ -81,7 +83,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://datainsightssenai.vercel.app"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
 
